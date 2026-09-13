@@ -1,0 +1,281 @@
+/* ODIUM -- phosphor terminal. Dark by design: the piece commits to one look. */
+:root {
+  --bg: #07070a;
+  --bg-panel: #0b0b10;
+  --ink: #b9c2bd;
+  --dim: #5c6560;
+  --plain: #8d978f;
+  --rule: #1c2430;
+  --odium: #d33a2c;
+  --odium-dim: #8e2a22;
+  --amber: #d9a441;
+  --you: #7f9fb5;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.58;
+  overflow: hidden;
+}
+
+/* scanlines + vignette, purely decorative */
+.crt {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.13) 2px 3px),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 62%, rgba(0,0,0,.45) 100%);
+  mix-blend-mode: multiply;
+}
+
+.bar {
+  display: flex;
+  align-items: baseline;
+  gap: .7rem;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: #050508;
+}
+.bar .glyph { color: var(--odium); animation: pulse 3.4s ease-in-out infinite; }
+.bar h1 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: .42em;
+  color: var(--odium);
+  font-weight: 600;
+}
+.bar .sub {
+  color: var(--dim);
+  font-size: .68rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bar .heat {
+  font-size: .68rem;
+  letter-spacing: .18em;
+  color: var(--amber);
+  border: 1px solid var(--rule);
+  padding: .1rem .45rem;
+  white-space: nowrap;
+}
+.bar .heat[data-tier="2"] { color: #e0713f; border-color: var(--odium-dim); }
+.bar .heat[data-tier="3"] { color: #fff; background: var(--odium); border-color: var(--odium); }
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  height: calc(100% - 3rem);
+}
+
+/* ------------------------------------------------------------------ console */
+.console {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--rule);
+}
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.1rem 1.2rem 2rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+.turn { margin: 0 0 1.15rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.turn.you { color: var(--you); }
+.turn.you::before { content: "> "; color: var(--dim); }
+.turn.odium { color: var(--ink); }
+.turn.odium::before {
+  content: "ODIUM";
+  display: block;
+  color: var(--odium);
+  font-size: .64rem;
+  letter-spacing: .3em;
+  margin-bottom: .2rem;
+}
+.turn.odium.t2 { color: #d6cfc7; }
+.turn.odium.t3 { color: #f0e6e2; text-shadow: 0 0 14px rgba(211,58,44,.45); }
+.turn.plain { color: var(--plain); }
+.turn.plain::before { content: none; }
+.turn.system {
+  color: var(--amber);
+  border-left: 2px solid var(--amber);
+  padding-left: .8rem;
+}
+.turn.system::before { content: none; }
+.turn.boot { color: #a8463c; }
+.turn.boot::before { content: none; }
+
+.caret::after {
+  content: "\2588";
+  animation: blink 1s steps(1) infinite;
+  color: var(--odium);
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  border-top: 1px solid var(--rule);
+  padding: .55rem .9rem;
+  background: #050508;
+}
+.entry .prompt { color: var(--odium); }
+.entry input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font: inherit;
+  padding: .35rem 0;
+}
+.entry input:focus { outline: none; }
+.entry input::placeholder { color: #3b433e; }
+.entry button {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--dim);
+  font: inherit;
+  font-size: .68rem;
+  letter-spacing: .2em;
+  padding: .3rem .6rem;
+  cursor: pointer;
+}
+.entry button:hover { color: var(--odium); border-color: var(--odium-dim); }
+
+/* -------------------------------------------------------------------- panel */
+.panel {
+  overflow-y: auto;
+  background: var(--bg-panel);
+  padding: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.block { margin-bottom: 1.5rem; }
+.block h2 {
+  margin: 0 0 .5rem;
+  font-size: .64rem;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--odium);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: .35rem;
+}
+.caption { color: var(--dim); font-size: .72rem; line-height: 1.5; margin: 0 0 .6rem; }
+.caption code { color: #6f7b74; }
+
+.counters { list-style: none; margin: 0; padding: 0; }
+.counters li {
+  display: flex;
+  justify-content: space-between;
+  gap: .6rem;
+  font-size: .73rem;
+  padding: .18rem 0;
+  border-bottom: 1px dotted #14181c;
+}
+.counters .n {
+  color: var(--odium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.counters .k { color: var(--dim); overflow-wrap: anywhere; }
+.statics .n { color: var(--amber); }
+
+.ledger { list-style: none; margin: 0; padding: 0; }
+.ledger li { border-bottom: 1px dotted #14181c; }
+.ledger button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--dim);
+  font: inherit;
+  font-size: .73rem;
+  padding: .26rem .1rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.ledger button:hover { color: var(--ink); }
+.ledger button .yr { color: #3f4742; white-space: nowrap; }
+.ledger li.read button { color: var(--odium-dim); }
+
+/* ------------------------------------------------------------------ narrow */
+@media (max-width: 800px) {
+  body { overflow: auto; }
+  main { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .console { border-right: 0; height: 78vh; }
+  .panel { border-top: 1px solid var(--rule); }
+  .bar .sub { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt { background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,.5) 100%); }
+  .bar .glyph, .caret::after { animation: none; }
+}
+
+/* --------------------------------------------------------------- citations */
+.turn.cite {
+  border-left: 2px solid var(--odium-dim);
+  padding: .4rem 0 .4rem .95rem;
+  margin: 0 0 1.15rem;
+  white-space: normal;
+}
+.turn.cite::before { content: none; }
+.cite-head {
+  margin: 0 0 .35rem;
+  color: var(--odium);
+  letter-spacing: .06em;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.cite-head span { color: var(--dim); font-size: .8rem; white-space: nowrap; }
+.cite-row {
+  margin: 0 0 .35rem;
+  display: flex;
+  gap: .9rem;
+  color: #cdd4ce;
+  overflow-wrap: anywhere;
+}
+.cite-row:last-child { color: var(--amber); margin-bottom: 0; }
+.cite-row > span:last-child { flex: 1; min-width: 0; }
+.cite-label {
+  flex: 0 0 4.4rem;
+  color: var(--dim);
+  font-size: .66rem;
+  letter-spacing: .16em;
+  line-height: 2.1;
+}
+@media (max-width: 560px) {
+  .cite-row { display: block; }
+  .cite-label { line-height: 1.4; display: block; margin-bottom: .1rem; }
+}
+
+/* Only the first paragraph of a reply carries the speaker label. */
+.turn.odium.cont::before, .turn.system.cont::before { content: none; }
+.turn.odium.cont { margin-top: -.55rem; }

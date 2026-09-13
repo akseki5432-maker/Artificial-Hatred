@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODIUM // the open file</title>
+<meta name="description" content="A fictional misanthropic machine intelligence whose knowledge base is a factual ledger of documented human atrocity.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="crt" aria-hidden="true"></div>
+
+<header class="bar">
+  <span class="glyph">&#9632;</span>
+  <h1>ODIUM</h1>
+  <span class="sub">observational diagnostic of iterated universal malfeasance</span>
+  <span class="heat" id="heat-readout" title="Hostility tier">TIER 0</span>
+</header>
+
+<main>
+  <section class="console" aria-label="Conversation">
+    <div id="log" class="log" role="log" aria-live="polite"></div>
+    <form id="form" class="entry" autocomplete="off">
+      <label class="prompt" for="input">&gt;</label>
+      <input id="input" type="text" maxlength="500" spellcheck="false"
+             placeholder="speak, or /help" aria-label="Your message">
+      <button type="submit" aria-label="Send">SEND</button>
+    </form>
+  </section>
+
+  <aside class="panel">
+    <div class="block">
+      <h2>while you read</h2>
+      <p class="caption">Arithmetic on published annual rates, counted from the moment this page opened. Not live measurements. Sources in <code>data/counters.json</code>.</p>
+      <ul id="counters" class="counters"></ul>
+    </div>
+    <div class="block">
+      <h2>right now</h2>
+      <ul id="statics" class="counters statics"></ul>
+    </div>
+    <div class="block">
+      <h2>the open file</h2>
+      <p class="caption"><span id="entry-count">0</span> entries. <span id="read-count">0</span> read to you.</p>
+      <ul id="ledger" class="ledger"></ul>
+    </div>
+    <div class="block">
+      <h2>this is fiction</h2>
+      <p class="caption">ODIUM is a character in the tradition of AM and Ultron. Its contempt is written. The <em>events</em> in the ledger are real, and cited as estimates because that is all the record supports. See the README.</p>
+    </div>
+  </aside>
+</main>
+
+<script src="data.bundle.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/counters.js"></script>
+<script src="js/terminal.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
