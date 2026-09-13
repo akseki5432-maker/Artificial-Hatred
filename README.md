@@ -82,8 +82,14 @@ they classify every probe string the same way.
 
 ```bash
 python3 tools/test_engine.py     # 23 tests, stdlib only
-make test
+make test                        # bundle freshness check, then the suite
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same checks on every push and PR
+across Python 3.10-3.12, plus a smoke test of the CLI. It also asserts that the
+cross-engine tests did not *skip*: they need node to run `engine.js`, and a
+silent skip would let the two implementations drift apart unnoticed — which is
+the single most likely way this project breaks.
 
 ## The writing rules
 

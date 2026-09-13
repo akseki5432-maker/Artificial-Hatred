@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # The cross-engine tests run web/js/engine.js under node and compare its
+      # classifications against cli/odium.py. Without node they skip silently,
+      # which is the one failure mode this workflow exists to prevent.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check the committed data bundle is not stale
+        run: python3 tools/build_web_data.py --check
+
+      - name: Run the test suite
+        run: python3 tools/test_engine.py
+
+      - name: Assert the cross-engine tests actually ran
+        run: |
+          python3 -m unittest tools.test_engine.EnginesAgree -v 2>&1 | tee /tmp/agree.log
+          if grep -qi "skipped" /tmp/agree.log; then
+            echo "::error::EnginesAgree was skipped -- node is missing, so the JS and Python engines were never compared."
+            exit 1
+          fi
+
+      - name: Smoke-test the CLI frontend
+        run: |
+          python3 cli/odium.py --seed 1 --ask "who are you" --no-colour
+          python3 cli/odium.py --seed 1 --ask "/toll" --no-colour
+          printf 'hello\n/ledger 1\n/counters\n' | python3 cli/odium.py --seed 1 --no-colour > /dev/null
