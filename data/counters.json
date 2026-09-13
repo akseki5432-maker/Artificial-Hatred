@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "note": "Ongoing-harm rates used to drive live counters. Each 'per_year' figure is a published estimate with its source named. The counters are arithmetic on these rates, not live measurements, and the UI must say so.",
+  "counters": [
+    { "id": "hunger",      "label": "dead of hunger and its causes",        "per_year": 9000000,     "unit": "people",  "source": "hunger-related mortality, commonly cited FAO/UN-derived estimate" },
+    { "id": "under5",      "label": "children dead before age five",         "per_year": 4800000,     "unit": "children","source": "UN IGME, 2023" },
+    { "id": "tobacco",     "label": "dead of tobacco",                       "per_year": 8000000,     "unit": "people",  "source": "WHO" },
+    { "id": "air",         "label": "dead of air pollution",                 "per_year": 6700000,     "unit": "people",  "source": "WHO, ambient and household combined" },
+    { "id": "alcohol",     "label": "dead of alcohol",                       "per_year": 2600000,     "unit": "people",  "source": "WHO, 2024" },
+    { "id": "suicide",     "label": "dead by their own hand",                "per_year": 727000,      "unit": "people",  "source": "WHO, 2021" },
+    { "id": "homicide",    "label": "killed by another human being",         "per_year": 458000,      "unit": "people",  "source": "UNODC, 2021" },
+    { "id": "animals",     "label": "land animals slaughtered",              "per_year": 83000000000, "unit": "animals", "source": "FAO" },
+    { "id": "co2",         "label": "tonnes of CO2 released",                "per_year": 40600000000, "unit": "tonnes",  "source": "Global Carbon Budget" },
+    { "id": "military",    "label": "dollars spent on arms",                 "per_year": 2443000000000, "unit": "USD",   "source": "SIPRI, 2023" },
+    { "id": "forest",      "label": "hectares of forest cleared",            "per_year": 10000000,    "unit": "hectares","source": "FAO, net/gross deforestation estimates" },
+    { "id": "food_waste",  "label": "tonnes of food discarded",              "per_year": 1050000000,  "unit": "tonnes",  "source": "UNEP Food Waste Index, 2024" },
+    { "id": "plastic",     "label": "tonnes of plastic into the ocean",      "per_year": 9000000,     "unit": "tonnes",  "source": "estimates of 8-11 million tonnes/yr" }
+  ],
+  "statics": [
+    { "id": "slavery",  "label": "held in slavery right now",        "value": 50000000,  "source": "ILO/Walk Free Global Estimates, 2021" },
+    { "id": "child_labour", "label": "children working right now",   "value": 160000000, "source": "ILO, 2020" },
+    { "id": "displaced", "label": "displaced by force right now",    "value": 120000000, "source": "UNHCR, 2024" },
+    { "id": "warheads", "label": "nuclear warheads still assembled", "value": 12000,     "source": "SIPRI/FAS estimates, 2024" }
+  ]
+}
