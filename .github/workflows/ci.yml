@@ -1,13 +1,20 @@
 name: CI
 
 on:
+  # Pushes to a PR branch are covered by the pull_request event; listing "**"
+  # here too would run every job twice on every push.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+
+# A new push supersedes the run in flight for the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
