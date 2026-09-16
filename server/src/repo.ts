@@ -66,6 +66,17 @@ export interface LedgerEntry {
   at: string;
 }
 
+export interface Skip {
+  id: number;
+  profileId: number;
+  habitId: string;
+  name: string;
+  amount: number;
+  /** When the money was actually moved into savings, if it has been. */
+  movedAt: string | null;
+  at: string;
+}
+
 export interface PriceRecord {
   key: string;
   name: string;
@@ -367,6 +378,62 @@ export class Repo {
       .prepare("SELECT COALESCE(SUM(CASE WHEN kind = 'out' THEN amount ELSE -amount END), 0) AS total FROM ledger WHERE goal_id = ? AND category = 'saving'")
       .get(goalId) as { total: number };
     return Math.max(0, row.total);
+  }
+
+  // ----- skips -----
+  listSkips(profileId: number, limit = 200): Skip[] {
+    return (this.db.prepare('SELECT * FROM skips WHERE profile_id = ? ORDER BY at DESC, id DESC LIMIT ?').all(profileId, limit) as Row[]).map((r) => ({
+      id: Number(r.id),
+      profileId: Number(r.profile_id),
+      habitId: String(r.habit_id),
+      name: String(r.name),
+      amount: Number(r.amount),
+      movedAt: r.moved_at === null || r.moved_at === undefined ? null : String(r.moved_at),
+      at: String(r.at),
+    }));
+  }
+
+  addSkip(profileId: number, habitId: string, name: string, amount: number): Skip {
+    const res = this.db.prepare('INSERT INTO skips (profile_id, habit_id, name, amount) VALUES (?, ?, ?, ?)').run(profileId, habitId, name, amount);
+    return this.listSkips(profileId).find((s) => s.id === Number(res.lastInsertRowid)) as Skip;
+  }
+
+  deleteSkip(id: number): boolean {
+    return this.db.prepare('DELETE FROM skips WHERE id = ?').run(id).changes > 0;
+  }
+
+  /**
+   * Turn skipped purchases into real saved money: one ledger entry for the
+   * total, and the skips are marked so the same money cannot be moved twice.
+   */
+  moveSkipsToSavings(profileId: number, goalId: number | null): { moved: number; count: number; entry: LedgerEntry | null } {
+    this.db.exec('BEGIN');
+    try {
+      const pending = this.listSkips(profileId, 10_000).filter((s) => s.movedAt === null);
+      const total = Math.round(pending.reduce((sum, s) => sum + s.amount, 0) * 100) / 100;
+      if (total <= 0) {
+        this.db.exec('COMMIT');
+        return { moved: 0, count: 0, entry: null };
+      }
+      const goal = goalId === null ? null : this.getGoal(goalId);
+      if (goalId !== null && (!goal || goal.profileId !== profileId)) throw new Error('Goal not found');
+      const entry = this.addLedger(profileId, {
+        kind: 'out',
+        amount: total,
+        category: 'saving',
+        note: goal ? `Skipped ${pending.length} treats, toward ${goal.name}` : `Skipped ${pending.length} treats`,
+        goalId: goal ? goal.id : null,
+      });
+      if (goal) this.db.prepare('UPDATE goals SET saved_so_far = saved_so_far + ? WHERE id = ?').run(total, goal.id);
+      const stamp = this.db.prepare("SELECT datetime('now') AS now").get() as { now: string };
+      const update = this.db.prepare('UPDATE skips SET moved_at = ? WHERE id = ?');
+      for (const s of pending) update.run(stamp.now, s.id);
+      this.db.exec('COMMIT');
+      return { moved: total, count: pending.length, entry };
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
   }
 
   // ----- prices -----

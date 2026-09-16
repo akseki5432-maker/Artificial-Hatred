@@ -26,6 +26,16 @@ export interface InsightContext {
   habit?: { name: string; price: number; timesPerWeek: number };
   /** Price of one candy bar in the kid's currency, for the "how many candy bars" line. */
   candyPrice?: number;
+  /** Real numbers from the kid's money log, when they have been keeping one. */
+  logged?: {
+    entries: number;
+    spentThisMonth: number;
+    receivedThisMonth: number;
+    topCategory: { name: string; amount: number } | null;
+    savingStreakWeeks: number;
+    skippedTotal: number;
+    pendingSkipTotal: number;
+  };
 }
 
 /** Plain-language observations that make the numbers land for a kid. */
@@ -117,6 +127,60 @@ export function buildInsights(ctx: InsightContext): Insight[] {
         : `${habit.timesPerWeek}x a week at ${fmt(habit.price)} is ${fmt(skip.yearlyCost)} a year, ${Math.round(shareOfIncome * 100)}% of your allowance. Skip half of them and keep ${fmt(skip.yearlyCost / 2)}.`,
     tone: shareOfIncome >= 0.5 ? 'warning' : 'tip',
   });
+
+  // Each observation below stands on its own, so skipping treats still says
+  // something useful even when no transactions have been logged yet.
+  const log = ctx.logged;
+  if (log) {
+    // Observations from what actually happened beat generic advice.
+    if (log.topCategory && log.spentThisMonth > 0) {
+      const share = Math.round((log.topCategory.amount / log.spentThisMonth) * 100);
+      out.push({
+        id: 'top-category',
+        emoji: '🔎',
+        title: `Most of your money went on ${log.topCategory.name}`,
+        body: `You logged ${fmt(log.topCategory.amount)} on ${log.topCategory.name}, about ${share}% of everything you spent. Nothing wrong with that, as long as it was your choice.`,
+        tone: share >= 60 ? 'warning' : 'tip',
+      });
+    }
+    if (log.receivedThisMonth > 0) {
+      const kept = log.receivedThisMonth - log.spentThisMonth;
+      const keptShare = Math.round((kept / log.receivedThisMonth) * 100);
+      out.push({
+        id: 'kept',
+        emoji: keptShare >= 50 ? '🏅' : keptShare >= 20 ? '👍' : '💸',
+        title: keptShare >= 0 ? `You kept ${keptShare}% of what came in` : 'You spent more than came in',
+        body:
+          keptShare >= 50
+            ? `You brought in ${fmt(log.receivedThisMonth)} and still have ${fmt(kept)} of it. That is a seriously good habit.`
+            : keptShare >= 0
+              ? `You brought in ${fmt(log.receivedThisMonth)} and kept ${fmt(kept)}. Try to push that a little higher next month.`
+              : `You spent ${fmt(log.spentThisMonth)} but only ${fmt(log.receivedThisMonth)} came in. The difference came out of money you already had.`,
+        tone: keptShare >= 50 ? 'win' : keptShare >= 0 ? 'tip' : 'warning',
+      });
+    }
+    if (log.savingStreakWeeks >= 2) {
+      out.push({
+        id: 'streak',
+        emoji: '🔥',
+        title: `${log.savingStreakWeeks} weeks in a row`,
+        body: `You have put money away ${log.savingStreakWeeks} weeks running. Streaks are how habits are built. Do not break the chain.`,
+        tone: 'win',
+      });
+    }
+    if (log.skippedTotal > 0) {
+      out.push({
+        id: 'skips',
+        emoji: '🙅',
+        title: `${fmt(log.skippedTotal)} not spent`,
+        body:
+          log.pendingSkipTotal > 0
+            ? `Skipping treats has saved you ${fmt(log.skippedTotal)} so far, and ${fmt(log.pendingSkipTotal)} of that is still waiting to be moved into your Save jar. Money you skip only counts once you actually put it away.`
+            : `Skipping treats has saved you ${fmt(log.skippedTotal)}, and you moved all of it into savings. That is exactly how it works.`,
+        tone: log.pendingSkipTotal > 0 ? 'tip' : 'win',
+      });
+    }
+  }
 
   out.push({
     id: 'rule',

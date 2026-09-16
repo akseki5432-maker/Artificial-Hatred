@@ -128,6 +128,17 @@ export interface Plan {
     savingStreakWeeks: number;
   };
   insights: Insight[];
+  skips: { count: number; pendingCount: number; pendingTotal: number; total: number; thisWeek: number };
+}
+
+export interface Skip {
+  id: number;
+  profileId: number;
+  habitId: string;
+  name: string;
+  amount: number;
+  movedAt: string | null;
+  at: string;
 }
 
 export interface PriceRecord {

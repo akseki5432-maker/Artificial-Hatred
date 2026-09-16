@@ -1,4 +1,4 @@
-import type { Catalog, EarnIdea, FxStatus, Goal, IncomeSource, LedgerEntry, Plan, PriceRecord, PriceSearchResult, Profile, ProviderStatus } from './types.ts';
+import type { Catalog, EarnIdea, FxStatus, Goal, IncomeSource, LedgerEntry, Plan, PriceRecord, PriceSearchResult, Profile, ProviderStatus, Skip } from './types.ts';
 
 export class ApiError extends Error {
   constructor(
@@ -69,6 +69,13 @@ export const api = {
     url: '/api/backup',
     profileUrl: (id: number) => `/api/profiles/${id}/backup`,
     restore: (data: unknown) => request<{ restored: { profiles: number; goals: number; income: number; ledger: number; prices: number } }>('POST', '/backup/restore', data),
+  },
+
+  skips: {
+    list: (profileId: number) => request<Skip[]>('GET', `/profiles/${profileId}/skips`),
+    add: (profileId: number, input: { habitId: string; name: string; amount: number }) => request<Skip>('POST', `/profiles/${profileId}/skips`, input),
+    remove: (id: number) => request<void>('DELETE', `/skips/${id}`),
+    bank: (profileId: number, goalId?: number | null) => request<{ moved: number; count: number; entry: LedgerEntry | null }>('POST', `/profiles/${profileId}/skips/bank`, { goalId: goalId ?? null }),
   },
 
   catalog: (currency?: string) => request<Catalog>('GET', currency ? `/catalog?currency=${encodeURIComponent(currency)}` : '/catalog'),

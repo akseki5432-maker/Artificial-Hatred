@@ -5,7 +5,9 @@ An allowance coach for kids. Type in what you get each day, week, or month and P
 - **What it really adds up to** - per day, week, month, year, and by the time you're 18.
 - **What you can do with it** - a catalog of things kids save for, with how long each one takes at different savings rates, plus your own goals. Put money in, watch the bar fill, and mark it bought when you get there.
 - **How to grow it** - a compound-growth simulator (piggy bank vs. savings vs. investing), the rule of 72, and the "family bank" idea.
-- **What the daily stuff costs** - the snack / boba / in-app-purchase habit calculator: what it costs in a year and what that money would become if saved instead.
+- **What the daily stuff costs** - the snack / boba / in-app-purchase habit calculator: what it costs in a year and
+  what that money would become if saved instead. Tap "I skipped it" each time you walk past, then bank the pile into
+  your Save jar. Skipping only counts once the money actually moves, which is the whole lesson.
 - **How to earn more** - age-appropriate ways to make money beyond an allowance, and a way to add them to your income.
 - **A money log** - track what comes in and goes out, see where it goes, keep a weekly saving streak, and export to CSV. Moving money to the Save jar counts as a transfer, not a spend, so the balance stays honest.
 - **Lessons** - six short money lessons, each with a three-question quiz and something to try this week.
@@ -65,7 +67,7 @@ packages/core   Pure TypeScript money engine (no dependencies). Used by both ser
                 priceParse.ts   pull prices out of text, robust median summary
                 catalog.ts      goal + habit catalog with typical prices and search queries
                 earn.ts         earning ideas by age
-                insights.ts     plain-language observations for the dashboard
+                insights.ts     plain-language observations, from the catalog and the kid's own log
                 lessons.ts      six kid-sized money lessons with quizzes
                 fx.ts           currency conversion and the fallback rate table
 server          Express 5 + node:sqlite API
@@ -89,6 +91,8 @@ e2e             Playwright smoke tests against the built app, including a phone-
 | PUT/DELETE | `/api/goals/:id` | update progress, favorite, price |
 | POST | `/api/goals/:id/save` | put money toward a goal (logs it too) |
 | POST | `/api/goals/:id/complete` | "I bought it": finishes the goal and records the purchase |
+| GET/POST | `/api/profiles/:id/skips` | treats skipped but not yet banked |
+| POST | `/api/profiles/:id/skips/bank` | move every pending skip into savings, optionally toward a goal |
 | GET/POST | `/api/profiles/:id/ledger` | money in / out |
 | GET | `/api/catalog?currency=EUR` | goal + habit catalog with current prices, converted |
 | GET | `/api/fx` | exchange-rate source and date |
@@ -141,6 +145,9 @@ light and dark mode. Concretely:
   entry that lowers neither the balance nor the "spent" total, and buying the goal takes that money back out of
   the jar and records the full price as the purchase. So the jar, the balance and the spending totals always agree.
 - If purchases are logged but income never is, the balance goes negative and the log says so rather than hiding it.
+- Skipping a treat is recorded but moves no money. It becomes savings only when banked, so the app never credits
+  a child with money they did not actually set aside.
+- Every figure the API returns is rounded to cents, so floating-point noise never reaches the screen.
 
 ## Privacy
 

@@ -302,6 +302,49 @@ describe('API', () => {
     expect(plan.json.ledgerSummary.missingIncome).toBe(false);
   });
 
+  it('tracks skipped treats and banks them', async () => {
+    const p = await api('POST', '/api/profiles', { name: 'Noor', age: 11, allowanceAmount: 10, allowanceCadence: 'weekly' });
+    const id = p.json.id;
+    expect((await api('POST', `/api/profiles/${id}/skips/bank`, {})).status).toBe(400);
+
+    await api('POST', `/api/profiles/${id}/skips`, { habitId: 'boba', name: 'Boba tea', amount: 6.5 });
+    await api('POST', `/api/profiles/${id}/skips`, { habitId: 'candy', name: 'Candy bar', amount: 1.75 });
+    const plan = await api('GET', `/api/profiles/${id}/plan`);
+    expect(plan.json.skips).toMatchObject({ count: 2, pendingCount: 2, pendingTotal: 8.25, total: 8.25 });
+    // Skipping alone is not saving: no money has moved yet.
+    expect(plan.json.ledgerSummary.inSaveJar).toBe(0);
+    expect(plan.json.insights.find((i: { id: string }) => i.id === 'skips').body).toContain('still waiting');
+
+    const goal = await api('POST', `/api/profiles/${id}/goals`, { name: 'Book', price: 20 });
+    const banked = await api('POST', `/api/profiles/${id}/skips/bank`, { goalId: goal.json.id });
+    expect(banked.status).toBe(201);
+    expect(banked.json).toMatchObject({ moved: 8.25, count: 2 });
+    expect(banked.json.entry.category).toBe('saving');
+
+    const after = await api('GET', `/api/profiles/${id}/plan`);
+    expect(after.json.ledgerSummary.inSaveJar).toBe(8.25);
+    expect(after.json.goals[0].savedSoFar).toBe(8.25);
+    expect(after.json.skips.pendingTotal).toBe(0);
+    expect(after.json.skips.total).toBe(8.25);
+    expect(after.json.insights.find((i: { id: string }) => i.id === 'skips').tone).toBe('win');
+
+    // The same skips cannot be banked twice.
+    expect((await api('POST', `/api/profiles/${id}/skips/bank`, {})).status).toBe(400);
+    const skips = await api('GET', `/api/profiles/${id}/skips`);
+    expect(skips.json).toHaveLength(2);
+    expect(skips.json.every((s: { movedAt: string | null }) => s.movedAt !== null)).toBe(true);
+    expect((await api('DELETE', `/api/skips/${skips.json[0].id}`)).status).toBe(204);
+    expect((await api('POST', `/api/profiles/${id}/skips`, { habitId: 'x', name: 'y', amount: -1 })).status).toBe(400);
+  });
+
+  it('rounds money to cents', async () => {
+    const p = await api('POST', '/api/profiles', { name: 'Rounder', allowanceAmount: 0 });
+    for (const amount of [0.1, 0.2]) await api('POST', `/api/profiles/${p.json.id}/ledger`, { kind: 'in', amount, category: 'gift' });
+    const plan = await api('GET', `/api/profiles/${p.json.id}/plan`);
+    expect(plan.json.ledgerSummary.totalIn).toBe(0.3);
+    expect(plan.json.ledgerSummary.balanceNow).toBe(0.3);
+  });
+
   it('backs up and restores everything', async () => {
     const backup = await api('GET', '/api/backup');
     expect(backup.status).toBe(200);

@@ -69,6 +69,18 @@ CREATE TABLE IF NOT EXISTS price_cache (
   fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS skips (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  habit_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  /** Set once the money has actually been moved into the Save jar. */
+  moved_at TEXT,
+  at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_skips_profile ON skips(profile_id, at);
+
 CREATE TABLE IF NOT EXISTS fx_rates (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   table_json TEXT NOT NULL,

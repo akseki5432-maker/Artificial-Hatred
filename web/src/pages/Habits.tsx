@@ -5,15 +5,19 @@ import { Card, Segmented, Slider, Stat } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { useProfile } from '../lib/profile.tsx';
 import { useAsync } from '../lib/useAsync.ts';
-import type { Catalog, PricedHabit } from '../lib/types.ts';
+import type { Catalog, PricedHabit, Skip } from '../lib/types.ts';
 
 export default function Habits() {
-  const { profile, plan, money } = useProfile();
+  const { profile, plan, refresh, money } = useProfile();
   const catalog = useAsync<Catalog>(() => api.catalog(profile?.currency), [profile?.currency]);
   const [selected, setSelected] = useState<PricedHabit | null>(null);
   const [cost, setCost] = useState(2.5);
   const [times, setTimes] = useState(5);
   const [years, setYears] = useState<'1' | '5' | '10'>('1');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [bankGoal, setBankGoal] = useState<string>('');
+  const skips = useAsync<Skip[]>(() => (profile ? api.skips.list(profile.id) : Promise.resolve([])), [profile?.id, plan?.skips.count]);
 
   useEffect(() => {
     const first = catalog.data?.habits[0];
@@ -59,6 +63,107 @@ export default function Habits() {
             </button>
           ))}
         </div>
+      </Card>
+
+      <Card
+        title="Skip it, keep the money"
+        emoji="🙅"
+        right={plan.skips.pendingTotal > 0 ? <span className="pill accent">{money(plan.skips.pendingTotal)} waiting</span> : undefined}
+      >
+        <p className="muted small">
+          Every time you decide not to buy something, tap the button. Nothing moves yet, it just keeps score. When you are ready, move the whole
+          pile into your Save jar and it becomes real money.
+        </p>
+        <div className="row">
+          <button
+            type="button"
+            className="btn"
+            disabled={!selected || busy}
+            onClick={async () => {
+              if (!profile || !selected) return;
+              setBusy(true);
+              setNote(null);
+              try {
+                await api.skips.add(profile.id, { habitId: selected.id, name: selected.name, amount: cost });
+                await refresh();
+                await skips.reload();
+              } catch (err) {
+                setNote(err instanceof Error ? err.message : String(err));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            🙅 I skipped {selected ? selected.name.toLowerCase() : 'it'} ({money(cost)})
+          </button>
+          {plan.goals.length > 0 && (
+            <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <span className="small">Bank it toward</span>
+              <select value={bankGoal} onChange={(e) => setBankGoal(e.target.value)} style={{ width: 'auto' }}>
+                <option value="">just my Save jar</option>
+                {plan.goals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.emoji} {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy || plan.skips.pendingTotal <= 0}
+            onClick={async () => {
+              if (!profile) return;
+              setBusy(true);
+              setNote(null);
+              try {
+                const r = await api.skips.bank(profile.id, bankGoal ? Number(bankGoal) : null);
+                setNote(`Moved ${money(r.moved)} from ${r.count} skipped treat${r.count === 1 ? '' : 's'} into your savings. That is real money now.`);
+                await refresh();
+                await skips.reload();
+              } catch (err) {
+                setNote(err instanceof Error ? err.message : String(err));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            🫙 Move {money(plan.skips.pendingTotal)} into savings
+          </button>
+        </div>
+        {note && <p className="small" style={{ marginTop: 10 }}>{note}</p>}
+        <div className="grid grid-3" style={{ marginTop: 12 }}>
+          <Stat label="Skipped this week" value={money(plan.skips.thisWeek)} />
+          <Stat label="Waiting to be banked" value={money(plan.skips.pendingTotal)} delta={`${plan.skips.pendingCount} treat${plan.skips.pendingCount === 1 ? '' : 's'}`} />
+          <Stat label="Skipped in total" value={money(plan.skips.total)} delta={`${plan.skips.count} time${plan.skips.count === 1 ? '' : 's'}`} />
+        </div>
+        {(skips.data ?? []).length > 0 && (
+          <ul className="list" style={{ marginTop: 12 }}>
+            {(skips.data ?? []).slice(0, 6).map((sk) => (
+              <li key={sk.id} className="item">
+                <span className="emoji">{sk.movedAt ? '🫙' : '🙅'}</span>
+                <div className="body">
+                  <div className="name">{sk.name}</div>
+                  <div className="meta">{sk.movedAt ? 'moved into savings' : 'waiting to be banked'}</div>
+                </div>
+                <span className="price">{money(sk.amount)}</span>
+                <button
+                  type="button"
+                  className="btn ghost sm"
+                  aria-label={`Remove the skipped ${sk.name}`}
+                  onClick={async () => {
+                    await api.skips.remove(sk.id);
+                    await refresh();
+                    await skips.reload();
+                  }}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <div className="grid grid-2">

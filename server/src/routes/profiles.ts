@@ -68,7 +68,7 @@ export function profilesRouter(repo: Repo, fx: FxService) {
     const rates = await fx.getTable();
     const catalog = repo.catalogWithPrices(p.currency, rates);
     const habits = catalog.habits.length > 0 ? catalog.habits : HABIT_CATALOG;
-    res.json(buildPlan(p, repo.listIncome(p.id), repo.listGoals(p.id), repo.listLedger(p.id), habits, rates));
+    res.json(buildPlan(p, repo.listIncome(p.id), repo.listGoals(p.id), repo.listLedger(p.id), habits, rates, repo.listSkips(p.id, 10_000)));
   });
 
   r.get('/:id/income', (req, res) => {

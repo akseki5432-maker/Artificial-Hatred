@@ -73,6 +73,25 @@ test('the grow page reacts to the rate slider', async ({ page }) => {
   await expect(earned).not.toHaveText('$0');
 });
 
+test('skipping a treat only becomes money when you bank it', async ({ page }) => {
+  await page.goto('/habits');
+  await page.locator('.tile', { hasText: 'Boba tea' }).click();
+  const card = page.locator('.card', { hasText: 'Skip it, keep the money' });
+  await card.getByRole('button', { name: /I skipped boba tea/ }).click();
+  await expect(card.getByText('Waiting to be banked').locator('..').locator('.value')).toHaveText('$6.50');
+
+  // Skipping alone must not pretend money moved.
+  await page.goto('/ledger');
+  await expect(page.getByText('Money you have now').locator('..').locator('.value')).not.toHaveText('$6.50');
+
+  await page.goto('/habits');
+  await page.locator('.card', { hasText: 'Skip it, keep the money' }).getByRole('button', { name: /Move .* into savings/ }).click();
+  await expect(page.getByText(/That is real money now/)).toBeVisible();
+
+  await page.goto('/ledger');
+  await expect(page.locator('table')).toContainText('Skipped 1 treats');
+});
+
 test('the log records allowance day and exports csv', async ({ page }) => {
   await page.goto('/ledger');
   await page.getByRole('button', { name: /I got my allowance/ }).click();

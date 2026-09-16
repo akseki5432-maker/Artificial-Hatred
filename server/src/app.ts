@@ -11,6 +11,7 @@ import { backupRouter } from './routes/backup.js';
 import { catalogRouter } from './routes/catalog.js';
 import { ledgerRouter } from './routes/ledger.js';
 import { profilesRouter } from './routes/profiles.js';
+import { skipsRouter } from './routes/skips.js';
 import { goalsRouter } from './routes/goals.js';
 
 export interface AppDeps {
@@ -59,6 +60,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api', goalsRouter(repo, deps.fx));
   app.use('/api', ledgerRouter(repo));
   app.use('/api', catalogRouter(repo, deps.priceSearch, deps.fx));
+  app.use('/api', skipsRouter(repo));
   app.use('/api', backupRouter(repo));
 
   app.use('/api', (_req, res) => {

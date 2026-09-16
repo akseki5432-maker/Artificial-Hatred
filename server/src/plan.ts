@@ -12,7 +12,7 @@ import {
   type IncomeSource as CoreIncome,
   type RateTable,
 } from '@pocketpilot/core';
-import type { Goal, IncomeSource, LedgerEntry, Profile } from './repo.js';
+import type { Goal, IncomeSource, LedgerEntry, Profile, Skip } from './repo.js';
 
 /** Out-categories that really are money leaving. "saving" is a transfer, not a spend. */
 export const SPENDING_CATEGORIES = ['snacks', 'games', 'toys', 'clothes', 'fun', 'sharing', 'other'] as const;
@@ -49,6 +49,7 @@ export function buildPlan(
   ledger: LedgerEntry[],
   habits: { id: string; name: string; price: number; timesPerWeek: number }[],
   rates?: RateTable,
+  skips: Skip[] = [],
 ) {
   const sources: (CoreIncome & { id: number | null })[] = [
     { id: null, label: 'Allowance', amount: profile.allowanceAmount, cadence: profile.allowanceCadence },
@@ -95,6 +96,19 @@ export function buildPlan(
   /** True when purchases are logged but income never is, which makes the balance look wrong. */
   const missingIncome = ledger.length > 0 && totalIn === 0 && profile.startingBalance === 0;
   const savingStreakWeeks = savingStreak(ledger);
+
+  // Skipped treats are money that was never spent. It only becomes real saved
+  // money once it is banked, so the two totals are reported separately.
+  const pendingSkips = skips.filter((s) => s.movedAt === null);
+  const skipsSummary = {
+    count: skips.length,
+    pendingCount: pendingSkips.length,
+    /** Not yet moved into savings. */
+    pendingTotal: round(pendingSkips.reduce((sum, s) => sum + s.amount, 0)),
+    /** Everything ever skipped, banked or not. */
+    total: round(skips.reduce((sum, s) => sum + s.amount, 0)),
+    thisWeek: round(skips.filter((s) => ledgerTime(s.at) >= Date.now() - 7 * 86400_000).reduce((sum, s) => sum + s.amount, 0)),
+  };
   const byCategory: Record<string, number> = {};
   for (const e of ledger) {
     if (e.kind !== 'out' || e.category === 'saving') continue;
@@ -130,20 +144,21 @@ export function buildPlan(
     weeksPerYear: WEEKS_PER_YEAR,
     habits: habitPreview,
     ledgerSummary: {
-      spentThisMonth,
-      savedThisMonth,
-      receivedThisMonth,
-      byCategory,
+      spentThisMonth: round(spentThisMonth),
+      savedThisMonth: round(savedThisMonth),
+      receivedThisMonth: round(receivedThisMonth),
+      byCategory: Object.fromEntries(Object.entries(byCategory).map(([k, v]) => [k, round(v)])),
       entries: ledger.length,
-      totalIn,
-      totalOut,
-      totalSpent,
-      inSaveJar,
-      balanceNow,
-      spendableNow,
+      totalIn: round(totalIn),
+      totalOut: round(totalOut),
+      totalSpent: round(totalSpent),
+      inSaveJar: round(inSaveJar),
+      balanceNow: round(balanceNow),
+      spendableNow: round(spendableNow),
       missingIncome,
       savingStreakWeeks,
     },
+    skips: skipsSummary,
     insights: buildInsights({
       name: profile.name,
       ...(profile.age !== null ? { age: profile.age } : {}),
@@ -153,10 +168,32 @@ export function buildPlan(
       annualRatePct: growth,
       startingBalance: profile.startingBalance,
       ...(habits.find((h) => h.id === 'candy') ? { candyPrice: (habits.find((h) => h.id === 'candy') as { price: number }).price } : {}),
+      logged: {
+        entries: ledger.length,
+        spentThisMonth: round(spentThisMonth),
+        receivedThisMonth: round(receivedThisMonth),
+        topCategory: topCategory(byCategory),
+        savingStreakWeeks,
+        skippedTotal: skipsSummary.total,
+        pendingSkipTotal: skipsSummary.pendingTotal,
+      },
       ...(favorite ? { goal: { name: favorite.name, price: favorite.price - favorite.savedSoFar } } : {}),
       ...(topHabit ? { habit: { name: topHabit.name, price: topHabit.price, timesPerWeek: topHabit.timesPerWeek } } : {}),
     }),
   };
+}
+
+/** Money is summed as floating point, so round to cents before it leaves the API. */
+function round(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/** The single biggest spending category, if there is one. */
+function topCategory(byCategory: Record<string, number>): { name: string; amount: number } | null {
+  const entries = Object.entries(byCategory);
+  if (entries.length === 0) return null;
+  const [name, amount] = entries.reduce((best, cur) => (cur[1] > best[1] ? cur : best));
+  return { name, amount: round(amount) };
 }
 
 /** SQLite stores "YYYY-MM-DD HH:MM:SS" in UTC; user-supplied ISO strings are normalized the same way on insert. */
