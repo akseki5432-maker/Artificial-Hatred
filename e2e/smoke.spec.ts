@@ -29,6 +29,35 @@ test('goals show time to reach them and a cart totals a year', async ({ page }) 
   await expect(page.getByText(/73% of a year's allowance/)).toBeVisible();
 });
 
+test('saving into a goal finishes it', async ({ page }) => {
+  await page.goto('/goals');
+  // A cheap goal so a couple of deposits finish it.
+  await page.getByPlaceholder('Telescope, guitar, hoverboard…').fill('Comic book');
+  await page.getByLabel('Price').fill('10');
+  await page.getByRole('button', { name: 'Add goal' }).click();
+  const card = page.locator('.card', { hasText: 'Comic book' }).first();
+  await expect(card).toBeVisible();
+
+  await card.getByRole('button', { name: /Put money in/ }).click();
+  await card.getByLabel('How much to put in').fill('4');
+  await card.getByRole('button', { name: 'Add it' }).click();
+  await expect(card.getByText('Saved $4 of $10')).toBeVisible();
+
+  await card.getByRole('button', { name: /Put money in/ }).click();
+  await card.getByLabel('How much to put in').fill('6');
+  await card.getByRole('button', { name: 'Add it' }).click();
+  await expect(card.getByText('You did it!')).toBeVisible();
+
+  // Putting money in also wrote it to the log, tagged as a goal.
+  await page.goto('/ledger');
+  await expect(page.getByText('Toward Comic book').first()).toBeVisible();
+
+  await page.goto('/goals');
+  await page.locator('.card', { hasText: 'Comic book' }).first().getByRole('button', { name: /I bought it/ }).click();
+  await expect(page.getByRole('heading', { name: /Things you saved up for/ })).toBeVisible();
+  await expect(page.locator('.item', { hasText: 'Comic book' })).toBeVisible();
+});
+
 test('the grow page reacts to the rate slider', async ({ page }) => {
   await page.goto('/grow');
   const rate = page.getByLabel(/Growth per year/);

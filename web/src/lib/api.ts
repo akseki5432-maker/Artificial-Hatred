@@ -51,6 +51,8 @@ export const api = {
     create: (profileId: number, input: Partial<Goal>) => request<Goal>('POST', `/profiles/${profileId}/goals`, input),
     update: (id: number, input: Partial<Goal>) => request<Goal>('PUT', `/goals/${id}`, input),
     remove: (id: number) => request<void>('DELETE', `/goals/${id}`),
+    save: (id: number, amount: number, note?: string) => request<{ goal: Goal; entry: LedgerEntry; reached: boolean }>('POST', `/goals/${id}/save`, { amount, note }),
+    complete: (id: number, logPurchase = true) => request<{ goal: Goal; entries: LedgerEntry[] }>('POST', `/goals/${id}/complete`, { logPurchase }),
   },
 
   ledger: {

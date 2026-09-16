@@ -3,7 +3,7 @@
 An allowance coach for kids. Type in what you get each day, week, or month and PocketPilot shows:
 
 - **What it really adds up to** - per day, week, month, year, and by the time you're 18.
-- **What you can do with it** - a catalog of things kids save for, with how long each one takes at different savings rates, plus your own goals.
+- **What you can do with it** - a catalog of things kids save for, with how long each one takes at different savings rates, plus your own goals. Put money in, watch the bar fill, and mark it bought when you get there.
 - **How to grow it** - a compound-growth simulator (piggy bank vs. savings vs. investing), the rule of 72, and the "family bank" idea.
 - **What the daily stuff costs** - the snack / boba / in-app-purchase habit calculator: what it costs in a year and what that money would become if saved instead.
 - **How to earn more** - age-appropriate ways to make money beyond an allowance, and a way to add them to your income.
@@ -87,6 +87,8 @@ e2e             Playwright smoke tests against the built app, including a phone-
 | GET/POST | `/api/profiles/:id/income` | extra income sources |
 | GET/POST | `/api/profiles/:id/goals` | goals (from the catalog by `catalogId`, or custom) |
 | PUT/DELETE | `/api/goals/:id` | update progress, favorite, price |
+| POST | `/api/goals/:id/save` | put money toward a goal (logs it too) |
+| POST | `/api/goals/:id/complete` | "I bought it": finishes the goal and records the purchase |
 | GET/POST | `/api/profiles/:id/ledger` | money in / out |
 | GET | `/api/catalog?currency=EUR` | goal + habit catalog with current prices, converted |
 | GET | `/api/fx` | exchange-rate source and date |
@@ -135,7 +137,10 @@ light and dark mode. Concretely:
 - Growth compounds monthly. The default 7% is a long-run stock market average, not a promise. The app says so.
 - Catalog prices are typical US list prices as of the date in `CATALOG_LAST_REVIEWED`, meant to be refreshed from the web or edited.
 - Goal progress ("I saved some") is tracked per goal and is separate from the money log, so a kid can track a goal without logging every transaction.
-- The money log treats a `saving` entry as moving money between jars. It lowers neither the balance nor the "spent" total.
+- The money log treats the Save jar as a pocket, not a purchase. Putting money toward a goal writes a `saving`
+  entry that lowers neither the balance nor the "spent" total, and buying the goal takes that money back out of
+  the jar and records the full price as the purchase. So the jar, the balance and the spending totals always agree.
+- If purchases are logged but income never is, the balance goes negative and the log says so rather than hiding it.
 
 ## Privacy
 

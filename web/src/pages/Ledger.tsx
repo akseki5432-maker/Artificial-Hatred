@@ -70,8 +70,17 @@ export default function Ledger() {
           ⬇️ Download as spreadsheet
         </a>
       </div>
+      {s.missingIncome && (
+        <div className="alert info">
+          Your log has money going out but none coming in, so the total below looks negative. Tap <strong>I got my allowance</strong> each time you get paid and it will add up properly.
+        </div>
+      )}
       <div className="grid grid-4">
-        <Stat label="Money you have now" value={money(s.balanceNow)} delta={s.inSaveJar > 0 ? `${money(s.inSaveJar)} of it is in your Save jar` : `${money(profile.startingBalance)} to start, plus in, minus spent`} />
+        <Stat
+          label="Money you have now"
+          value={money(s.balanceNow)}
+          delta={s.inSaveJar > 0 ? `${money(s.spendableNow)} free to spend, ${money(s.inSaveJar)} saved for goals` : `${money(profile.startingBalance)} to start, plus in, minus spent`}
+        />
         <Stat label="Came in (30 days)" value={money(s.receivedThisMonth)} />
         <Stat label="Spent (30 days)" value={money(s.spentThisMonth)} delta={s.receivedThisMonth > 0 ? `kept ${Math.max(0, Math.round(((s.receivedThisMonth - s.spentThisMonth) / s.receivedThisMonth) * 100))}% of what came in` : undefined} />
         <Stat label="Saving streak" value={`${s.savingStreakWeeks} week${s.savingStreakWeeks === 1 ? '' : 's'} ${s.savingStreakWeeks > 0 ? '🔥' : ''}`} delta='log a "saving" entry each week to keep it going' />
@@ -158,6 +167,7 @@ export default function Ledger() {
                   <td>
                     {CAT_EMOJI[e.category] ?? ''} {e.category}
                     {e.note ? <span className="muted"> · {e.note}</span> : null}
+                    {e.goalId !== null && <span className="pill accent" style={{ marginLeft: 6 }}>goal</span>}
                   </td>
                   <td className="num" style={{ color: e.kind === 'in' ? 'var(--win-ink)' : undefined, fontWeight: 700 }}>
                     {e.kind === 'in' ? '+' : '−'}

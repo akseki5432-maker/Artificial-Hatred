@@ -15,6 +15,12 @@ const goalInput = z.object({
   savedSoFar: z.number().min(0).max(10_000_000).optional(),
   isFavorite: z.boolean().optional(),
   targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD').nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+});
+
+const saveInput = z.object({
+  amount: z.number().positive().max(1_000_000),
+  note: z.string().trim().max(140).nullable().optional(),
 });
 
 export function goalsRouter(repo: Repo, fx: FxService) {
@@ -63,6 +69,27 @@ export function goalsRouter(repo: Repo, fx: FxService) {
     const goal = repo.updateGoal(idParam(req), input);
     if (!goal) throw new HttpError(404, 'Goal not found');
     res.json(goal);
+  });
+
+  /** Put money toward a goal: logs it and moves the goal's progress together. */
+  r.post('/goals/:id/save', (req, res) => {
+    const id = idParam(req);
+    const goal = repo.getGoal(id);
+    if (!goal) throw new HttpError(404, 'Goal not found');
+    if (goal.completedAt) throw new HttpError(400, 'That goal is already finished');
+    const input = saveInput.parse(req.body);
+    const result = repo.saveTowardGoal(goal.profileId, id, input.amount, input.note ?? null);
+    res.status(201).json({ ...result, reached: result.goal.savedSoFar >= result.goal.price });
+  });
+
+  /** "I bought it!" - finishes the goal and records the purchase. */
+  r.post('/goals/:id/complete', (req, res) => {
+    const id = idParam(req);
+    const goal = repo.getGoal(id);
+    if (!goal) throw new HttpError(404, 'Goal not found');
+    if (goal.completedAt) throw new HttpError(400, 'That goal is already finished');
+    const logPurchase = req.body?.logPurchase !== false;
+    res.json(repo.completeGoal(id, logPurchase));
   });
 
   r.delete('/goals/:id', (req, res) => {

@@ -49,6 +49,8 @@ export interface Goal {
   isFavorite: boolean;
   /** ISO date (YYYY-MM-DD) the kid wants it by, if any. */
   targetDate: string | null;
+  /** Set when the kid actually got the thing. */
+  completedAt: string | null;
   createdAt: string;
 }
 
@@ -59,6 +61,8 @@ export interface LedgerEntry {
   amount: number;
   category: string;
   note: string | null;
+  /** The goal this entry was put toward, if any. */
+  goalId: number | null;
   at: string;
 }
 
@@ -119,6 +123,7 @@ function rowToGoal(r: Row): Goal {
     savedSoFar: Number(r.saved_so_far),
     isFavorite: Number(r.is_favorite) === 1,
     targetDate: r.target_date === null || r.target_date === undefined ? null : String(r.target_date),
+    completedAt: r.completed_at === null || r.completed_at === undefined ? null : String(r.completed_at),
     createdAt: String(r.created_at),
   };
 }
@@ -131,6 +136,7 @@ function rowToLedger(r: Row): LedgerEntry {
     amount: Number(r.amount),
     category: String(r.category),
     note: r.note === null ? null : String(r.note),
+    goalId: r.goal_id === null || r.goal_id === undefined ? null : Number(r.goal_id),
     at: String(r.at),
   };
 }
@@ -146,6 +152,23 @@ function rowToPrice(r: Row): PriceRecord {
     note: r.note === null ? null : String(r.note),
     fetchedAt: String(r.fetched_at),
   };
+}
+
+/** Best-guess spending category for a finished goal, for the "where it goes" chart. */
+function categoryForGoal(goal: Goal): string {
+  const item = GOAL_CATALOG.find((g) => g.id === goal.catalogId);
+  switch (item?.category) {
+    case 'games':
+      return 'games';
+    case 'toys':
+      return 'toys';
+    case 'sports':
+      return 'clothes';
+    case 'experiences':
+      return 'fun';
+    default:
+      return 'other';
+  }
 }
 
 export class Repo {
@@ -241,7 +264,7 @@ export class Repo {
 
   // ----- goals -----
   listGoals(profileId: number): Goal[] {
-    return (this.db.prepare('SELECT * FROM goals WHERE profile_id = ? ORDER BY is_favorite DESC, id').all(profileId) as Row[]).map(rowToGoal);
+    return (this.db.prepare('SELECT * FROM goals WHERE profile_id = ? ORDER BY completed_at IS NOT NULL, is_favorite DESC, id').all(profileId) as Row[]).map(rowToGoal);
   }
 
   getGoal(id: number): Goal | null {
@@ -249,7 +272,7 @@ export class Repo {
     return row ? rowToGoal(row) : null;
   }
 
-  createGoal(profileId: number, g: Omit<Goal, 'id' | 'profileId' | 'createdAt'>): Goal {
+  createGoal(profileId: number, g: Omit<Goal, 'id' | 'profileId' | 'createdAt' | 'completedAt'>): Goal {
     const res = this.db
       .prepare(
         `INSERT INTO goals (profile_id, catalog_id, name, emoji, price, currency, search_query, saved_so_far, is_favorite, target_date)
@@ -264,8 +287,8 @@ export class Repo {
     if (!cur) return null;
     const next = { ...cur, ...patch };
     this.db
-      .prepare('UPDATE goals SET catalog_id=?, name=?, emoji=?, price=?, currency=?, search_query=?, saved_so_far=?, is_favorite=?, target_date=? WHERE id=?')
-      .run(next.catalogId, next.name, next.emoji, next.price, next.currency, next.searchQuery, next.savedSoFar, next.isFavorite ? 1 : 0, next.targetDate, id);
+      .prepare('UPDATE goals SET catalog_id=?, name=?, emoji=?, price=?, currency=?, search_query=?, saved_so_far=?, is_favorite=?, target_date=?, completed_at=? WHERE id=?')
+      .run(next.catalogId, next.name, next.emoji, next.price, next.currency, next.searchQuery, next.savedSoFar, next.isFavorite ? 1 : 0, next.targetDate, next.completedAt, id);
     return this.getGoal(id);
   }
 
@@ -278,16 +301,72 @@ export class Repo {
     return (this.db.prepare('SELECT * FROM ledger WHERE profile_id = ? ORDER BY at DESC, id DESC LIMIT ?').all(profileId, limit) as Row[]).map(rowToLedger);
   }
 
-  addLedger(profileId: number, e: { kind: 'in' | 'out'; amount: number; category: string; note?: string | null; at?: string }): LedgerEntry {
+  addLedger(profileId: number, e: { kind: 'in' | 'out'; amount: number; category: string; note?: string | null; at?: string; goalId?: number | null }): LedgerEntry {
     const res = this.db
-      .prepare("INSERT INTO ledger (profile_id, kind, amount, category, note, at) VALUES (?, ?, ?, ?, ?, COALESCE(datetime(?), datetime('now')))")
-      .run(profileId, e.kind, e.amount, e.category, e.note ?? null, e.at ?? null);
+      .prepare("INSERT INTO ledger (profile_id, kind, amount, category, note, goal_id, at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(datetime(?), datetime('now')))")
+      .run(profileId, e.kind, e.amount, e.category, e.note ?? null, e.goalId ?? null, e.at ?? null);
     const row = this.db.prepare('SELECT * FROM ledger WHERE id = ?').get(Number(res.lastInsertRowid)) as Row;
     return rowToLedger(row);
   }
 
   deleteLedger(id: number): boolean {
     return this.db.prepare('DELETE FROM ledger WHERE id = ?').run(id).changes > 0;
+  }
+
+  /**
+   * Move money into a goal: one ledger entry plus the goal's progress, in a
+   * single transaction so the log and the goal can never disagree.
+   */
+  saveTowardGoal(profileId: number, goalId: number, amount: number, note?: string | null): { goal: Goal; entry: LedgerEntry } {
+    this.db.exec('BEGIN');
+    try {
+      const goal = this.getGoal(goalId);
+      if (!goal || goal.profileId !== profileId) throw new Error('Goal not found');
+      const entry = this.addLedger(profileId, { kind: 'out', amount, category: 'saving', note: note ?? `Toward ${goal.name}`, goalId });
+      this.db.prepare('UPDATE goals SET saved_so_far = saved_so_far + ? WHERE id = ?').run(amount, goalId);
+      this.db.exec('COMMIT');
+      return { goal: this.getGoal(goalId) as Goal, entry };
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /**
+   * Mark a goal as bought. Money that was already in the Save jar is taken back
+   * out of it and the full price is recorded as a purchase, so the jar, the
+   * balance and the spending totals all stay consistent.
+   */
+  completeGoal(goalId: number, logPurchase: boolean): { goal: Goal; entries: LedgerEntry[] } {
+    this.db.exec('BEGIN');
+    try {
+      const goal = this.getGoal(goalId);
+      if (!goal) throw new Error('Goal not found');
+      const entries: LedgerEntry[] = [];
+      if (logPurchase) {
+        const saved = this.jarBalanceForGoal(goalId);
+        if (saved > 0) {
+          entries.push(this.addLedger(goal.profileId, { kind: 'in', amount: saved, category: 'saving', note: `From the Save jar for ${goal.name}`, goalId }));
+        }
+        if (goal.price > 0) {
+          entries.push(this.addLedger(goal.profileId, { kind: 'out', amount: goal.price, category: categoryForGoal(goal), note: `Bought ${goal.name}`, goalId }));
+        }
+      }
+      this.db.prepare("UPDATE goals SET completed_at = datetime('now'), is_favorite = 0 WHERE id = ?").run(goalId);
+      this.db.exec('COMMIT');
+      return { goal: this.getGoal(goalId) as Goal, entries };
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /** How much of this goal's money is sitting in the Save jar right now. */
+  private jarBalanceForGoal(goalId: number): number {
+    const row = this.db
+      .prepare("SELECT COALESCE(SUM(CASE WHEN kind = 'out' THEN amount ELSE -amount END), 0) AS total FROM ledger WHERE goal_id = ? AND category = 'saving'")
+      .get(goalId) as { total: number };
+    return Math.max(0, row.total);
   }
 
   // ----- prices -----

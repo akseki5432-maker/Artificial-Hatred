@@ -96,6 +96,8 @@ export function openDb(filePath: string): Db {
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
   ensureColumn(db, 'goals', 'target_date', 'TEXT');
+  ensureColumn(db, 'goals', 'completed_at', 'TEXT');
+  ensureColumn(db, 'ledger', 'goal_id', 'INTEGER');
   return db;
 }
 

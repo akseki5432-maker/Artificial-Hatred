@@ -50,6 +50,7 @@ export interface Goal {
   savedSoFar: number;
   isFavorite: boolean;
   targetDate: string | null;
+  completedAt: string | null;
   createdAt: string;
 }
 
@@ -68,6 +69,7 @@ export interface LedgerEntry {
   amount: number;
   category: string;
   note: string | null;
+  goalId: number | null;
   at: string;
 }
 
@@ -107,7 +109,8 @@ export interface Plan {
   split: SplitAmounts;
   balanceOneYear: BalancePoint[];
   untilAdult: { years: number; withGrowth: CompoundGrowthResult; noGrowth: CompoundGrowthResult };
-  goals: (Goal & { plans: GoalPlan[]; progress: number; deadline: DeadlinePlan | null; convertedFrom: { price: number; currency: string } | null })[];
+  goals: (Goal & { plans: GoalPlan[]; progress: number; deadline: DeadlinePlan | null; convertedFrom: { price: number; currency: string } | null; reached: boolean })[];
+  doneGoals: (Goal & { progress: number })[];
   habits: (PricedHabit & { oneYear: SkipHabitResult; fiveYears: SkipHabitResult })[];
   ledgerSummary: {
     spentThisMonth: number;
@@ -120,6 +123,8 @@ export interface Plan {
     totalSpent: number;
     inSaveJar: number;
     balanceNow: number;
+    spendableNow: number;
+    missingIncome: boolean;
     savingStreakWeeks: number;
   };
   insights: Insight[];

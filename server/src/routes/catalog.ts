@@ -8,6 +8,12 @@ import type { FxService } from '../services/fx.js';
 
 const KEY = /^(goal|habit|custom):[a-z0-9-]{1,60}$/;
 
+/**
+ * Pause between lookups during a full refresh, so a provider is not hit ~45
+ * times in a burst. Tests run with no delay so the suite stays fast.
+ */
+const REFRESH_DELAY_MS = Number(process.env.PRICE_REFRESH_DELAY_MS ?? (process.env.NODE_ENV === 'test' ? 0 : 400));
+
 const searchInput = z.object({
   query: z.string().trim().min(2).max(200),
   currency: z.string().trim().length(3).toUpperCase().optional(),
@@ -127,7 +133,10 @@ export function catalogRouter(repo: Repo, priceSearch: PriceSearchService, fx: F
     const updated: { key: string; price: number; currency: string; provider: string }[] = [];
     const failed: { key: string; error: string }[] = [];
     try {
+    let index = 0;
     for (const item of items) {
+      // Space the requests out so a real provider is not hit ~45 times in a burst.
+      if (index++ > 0 && REFRESH_DELAY_MS > 0) await new Promise((r) => setTimeout(r, REFRESH_DELAY_MS));
       try {
         const result = await priceSearch.search(item.query, { currency: currency ?? item.currency, country });
         repo.setPrice({

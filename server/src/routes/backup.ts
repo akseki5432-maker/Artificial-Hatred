@@ -36,6 +36,7 @@ const backupSchema = z.object({
               savedSoFar: z.number().min(0).optional(),
               isFavorite: z.boolean().optional(),
               targetDate: z.string().nullable().optional(),
+              completedAt: z.string().nullable().optional(),
             }),
           )
           .default([]),
@@ -111,7 +112,7 @@ export function backupRouter(repo: Repo) {
         added.income++;
       }
       for (const g of p.goals) {
-        repo.createGoal(profile.id, {
+        const created = repo.createGoal(profile.id, {
           catalogId: g.catalogId ?? null,
           name: g.name,
           emoji: g.emoji ?? '🎯',
@@ -122,6 +123,7 @@ export function backupRouter(repo: Repo) {
           isFavorite: g.isFavorite ?? false,
           targetDate: g.targetDate ?? null,
         });
+        if (g.completedAt) repo.updateGoal(created.id, { completedAt: g.completedAt });
         added.goals++;
       }
       for (const e of p.ledger) {
@@ -166,6 +168,7 @@ function buildBackup(repo: Repo, onlyProfileId?: number): Backup {
         savedSoFar: g.savedSoFar,
         isFavorite: g.isFavorite,
         targetDate: g.targetDate,
+        completedAt: g.completedAt,
       })),
       ledger: repo.listLedger(p.id, 100_000).map((e) => ({ kind: e.kind, amount: e.amount, category: e.category, note: e.note, at: e.at })),
     })),

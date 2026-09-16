@@ -198,6 +198,7 @@ describe('API', () => {
     expect(plan.json.ledgerSummary.savingStreakWeeks).toBe(3);
     expect(plan.json.ledgerSummary.totalIn).toBe(10);
     expect(plan.json.ledgerSummary.totalOut).toBe(3.5 + 6);
+    expect(plan.json.ledgerSummary.spendableNow).toBeCloseTo(10 - 3.5 - 6, 6);
     // Saving is a transfer: it sits in the jar rather than counting as spending.
     expect(plan.json.ledgerSummary.inSaveJar).toBe(6);
     expect(plan.json.ledgerSummary.totalSpent).toBe(3.5);
@@ -224,6 +225,81 @@ describe('API', () => {
     expect(text.split('\n')[0]).toBe('date,kind,amount,currency,category,note');
     expect(text).toContain(',in,10,USD,allowance,Allowance');
     expect(text).toContain(',out,3.5,USD,snacks,chips');
+  });
+
+  it('saves toward a goal and finishes it', async () => {
+    const p = await api('POST', '/api/profiles', { name: 'Kai', age: 12, allowanceAmount: 20, allowanceCadence: 'weekly' });
+    const goal = await api('POST', `/api/profiles/${p.json.id}/goals`, { name: 'Skateboard', price: 50, emoji: '🛹' });
+
+    const first = await api('POST', `/api/goals/${goal.json.id}/save`, { amount: 20 });
+    expect(first.status).toBe(201);
+    expect(first.json.goal.savedSoFar).toBe(20);
+    expect(first.json.reached).toBe(false);
+    // The money moved into the jar, so it is logged but not counted as spending.
+    expect(first.json.entry.category).toBe('saving');
+    expect(first.json.entry.goalId).toBe(goal.json.id);
+    expect(first.json.entry.note).toBe('Toward Skateboard');
+
+    const second = await api('POST', `/api/goals/${goal.json.id}/save`, { amount: 30 });
+    expect(second.json.goal.savedSoFar).toBe(50);
+    expect(second.json.reached).toBe(true);
+
+    const plan = await api('GET', `/api/profiles/${p.json.id}/plan`);
+    expect(plan.json.goals[0].reached).toBe(true);
+    expect(plan.json.ledgerSummary.inSaveJar).toBe(50);
+    expect(plan.json.ledgerSummary.totalSpent).toBe(0);
+
+    const done = await api('POST', `/api/goals/${goal.json.id}/complete`, {});
+    expect(done.status).toBe(200);
+    expect(done.json.goal.completedAt).toBeTruthy();
+    // Buying it takes the money back out of the jar and records the purchase.
+    expect(done.json.entries).toHaveLength(2);
+    expect(done.json.entries[0]).toMatchObject({ kind: 'in', category: 'saving', amount: 50 });
+    expect(done.json.entries[1]).toMatchObject({ kind: 'out', amount: 50 });
+
+    const after = await api('GET', `/api/profiles/${p.json.id}/plan`);
+    expect(after.json.goals).toHaveLength(0);
+    expect(after.json.doneGoals).toHaveLength(1);
+    expect(after.json.doneGoals[0].name).toBe('Skateboard');
+    // The jar is empty again and the withdrawal did not count as income.
+    expect(after.json.ledgerSummary.inSaveJar).toBe(0);
+    expect(after.json.ledgerSummary.totalIn).toBe(0);
+    expect(after.json.ledgerSummary.totalSpent).toBe(50);
+    expect(after.json.ledgerSummary.balanceNow).toBe(-50);
+    expect(after.json.ledgerSummary.missingIncome).toBe(true);
+
+    // A finished goal cannot be saved into or finished twice.
+    expect((await api('POST', `/api/goals/${goal.json.id}/save`, { amount: 1 })).status).toBe(400);
+    expect((await api('POST', `/api/goals/${goal.json.id}/complete`, {})).status).toBe(400);
+    expect((await api('POST', '/api/goals/9999/save', { amount: 1 })).status).toBe(404);
+    expect((await api('POST', `/api/goals/${goal.json.id}/save`, { amount: -5 })).status).toBe(400);
+  });
+
+  it('logs the unsaved part when a goal is bought without saving it all', async () => {
+    const p = await api('POST', '/api/profiles', { name: 'Mia', age: 12, allowanceAmount: 20, allowanceCadence: 'weekly' });
+    const goal = await api('POST', `/api/profiles/${p.json.id}/goals`, { name: 'Headphones', price: 100, emoji: '🎧' });
+    await api('POST', `/api/profiles/${p.json.id}/ledger`, { kind: 'in', amount: 200, category: 'gift' });
+    await api('POST', `/api/goals/${goal.json.id}/save`, { amount: 40 });
+    let mid = await api('GET', `/api/profiles/${p.json.id}/plan`);
+    expect(mid.json.ledgerSummary.balanceNow).toBe(200);
+    expect(mid.json.ledgerSummary.inSaveJar).toBe(40);
+    expect(mid.json.ledgerSummary.spendableNow).toBe(160);
+
+    const done = await api('POST', `/api/goals/${goal.json.id}/complete`, {});
+    // The 40 comes back out of the jar and the whole 100 is the purchase.
+    expect(done.json.entries.map((e: { kind: string; amount: number }) => [e.kind, e.amount])).toEqual([
+      ['in', 40],
+      ['out', 100],
+    ]);
+    const plan = await api('GET', `/api/profiles/${p.json.id}/plan`);
+    expect(plan.json.ledgerSummary.totalSpent).toBe(100);
+    expect(plan.json.ledgerSummary.inSaveJar).toBe(0);
+    expect(plan.json.ledgerSummary.balanceNow).toBe(100);
+    expect(plan.json.ledgerSummary.spendableNow).toBe(100);
+    // A jar withdrawal is not pocket money arriving.
+    expect(plan.json.ledgerSummary.totalIn).toBe(200);
+    expect(plan.json.ledgerSummary.receivedThisMonth).toBe(200);
+    expect(plan.json.ledgerSummary.missingIncome).toBe(false);
   });
 
   it('backs up and restores everything', async () => {

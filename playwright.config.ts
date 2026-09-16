@@ -29,6 +29,7 @@ export default defineConfig({
       POCKETPILOT_DB: ':memory:',
       ENABLE_DDG_SEARCH: '0',
       ENABLE_LIVE_FX: '0',
+      PRICE_REFRESH_DELAY_MS: '0',
     },
     timeout: 60_000,
   },

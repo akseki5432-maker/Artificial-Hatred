@@ -19,7 +19,7 @@ const fx = new FxService(db, fetch, config.fxCacheHours, config.enableLiveFx, (m
 
 const app = createApp({ db, priceSearch, fx, webDist: config.webDist, ...(config.corsOrigins ? { corsOrigins: config.corsOrigins } : {}) });
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   const providers = priceSearch
     .providerStatus()
     .map((p) => `${p.name}${p.configured ? '' : ' (off)'}`)
@@ -28,3 +28,20 @@ app.listen(config.port, () => {
   console.log(`Database: ${config.dbPath}`);
   console.log(`Price providers: ${providers}`);
 });
+
+// Close the database cleanly so nothing is left half-written.
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    console.log(`\n${signal} received, shutting down.`);
+    server.close(() => {
+      try {
+        db.close();
+      } catch {
+        /* already closed */
+      }
+      process.exit(0);
+    });
+    // Do not hang forever if a connection refuses to close.
+    setTimeout(() => process.exit(0), 5000).unref();
+  });
+}

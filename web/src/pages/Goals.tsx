@@ -138,8 +138,28 @@ export default function Goals() {
                     </span>
                     <span>{Math.round(g.progress * 100)}%</span>
                   </div>
-                  {remaining === 0 ? (
-                    <div className="alert ok">You can get this right now. 🎉</div>
+                  {g.reached ? (
+                    <div className="alert ok">
+                      <strong>You did it! 🎉</strong> You have saved the whole {money(g.price)} for {g.name}.
+                      <div className="row" style={{ marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="btn sm"
+                          onClick={async () => {
+                            setGoalError(null);
+                            try {
+                              await api.goals.complete(g.id);
+                              await refresh();
+                            } catch (err) {
+                              setGoalError(err instanceof Error ? err.message : String(err));
+                            }
+                          }}
+                        >
+                          🛍️ I bought it!
+                        </button>
+                        <span className="tiny">This moves it to your finished list and records the purchase in your log.</span>
+                      </div>
+                    </div>
                   ) : (
                     <div className="scroll-x">
                       <table>
@@ -191,7 +211,25 @@ export default function Goals() {
                     Fun fact: {money(g.price)} saved and grown at {profile.growthRatePct}% for 10 years would be {money(later)}. Is this worth {money(later)} to you? Sometimes yes!
                   </p>
                   <div className="row">
-                    <UpdateSaved goalId={g.id} value={g.savedSoFar} sym={sym} onDone={refresh} />
+                    {!g.reached && <PutMoneyIn goalId={g.id} remaining={remaining} sym={sym} onDone={refresh} />}
+                    {!g.reached && (
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        onClick={async () => {
+                          if (!confirm(`Did you already buy ${g.name}? It moves to your finished list.`)) return;
+                          setGoalError(null);
+                          try {
+                            await api.goals.complete(g.id);
+                            await refresh();
+                          } catch (err) {
+                            setGoalError(err instanceof Error ? err.message : String(err));
+                          }
+                        }}
+                      >
+                        ✅ Got it already
+                      </button>
+                    )}
                     <DeadlinePicker goalId={g.id} value={g.targetDate} onDone={refresh} />
                     <button type="button" className="btn ghost sm" onClick={async () => { await api.goals.update(g.id, { isFavorite: !g.isFavorite }); await refresh(); }}>
                       {g.isFavorite ? '⭐ Favorite' : '☆ Make favorite'}
@@ -208,6 +246,29 @@ export default function Goals() {
             );
           })}
         </div>
+      )}
+
+      {plan.doneGoals.length > 0 && (
+        <Card title="Things you saved up for" emoji="🏆" right={<span className="pill good">{plan.doneGoals.length} done</span>}>
+          <ul className="list">
+            {plan.doneGoals.map((g) => (
+              <li key={g.id} className="item">
+                <span className="emoji">{g.emoji}</span>
+                <div className="body">
+                  <div className="name">{g.name}</div>
+                  <div className="meta">Finished {g.completedAt ? formatStamp(g.completedAt) : ''}</div>
+                </div>
+                <span className="price">{money(g.price)}</span>
+                <button type="button" className="btn ghost sm" onClick={async () => { if (confirm(`Remove ${g.name} from your finished list?`)) { await api.goals.remove(g.id); await refresh(); } }}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="tiny" style={{ marginTop: 8 }}>
+            You saved up {money(plan.doneGoals.reduce((sum, g) => sum + g.price, 0))} on your own. That is the whole point.
+          </p>
+        </Card>
       )}
 
       <Card title="Add your own goal" emoji="✨">
@@ -334,27 +395,55 @@ export default function Goals() {
   );
 }
 
+function formatStamp(at: string): string {
+  const d = new Date(at.includes('T') ? at : `${at.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? at : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function UpdateSaved({ goalId, value, sym, onDone }: { goalId: number; value: number; sym: string; onDone: () => Promise<void> }) {
-  const [v, setV] = useState(value);
+function PutMoneyIn({ goalId, remaining, sym, onDone }: { goalId: number; remaining: number; sym: string; onDone: () => Promise<void> }) {
+  const [v, setV] = useState(() => Math.min(5, Math.max(1, Math.round(remaining))));
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!open)
     return (
-      <button type="button" className="btn sm secondary" onClick={() => setOpen(true)}>
-        💰 I saved some
+      <button type="button" className="btn sm" onClick={() => setOpen(true)}>
+        💰 Put money in
       </button>
     );
   return (
     <span className="row" style={{ gap: 6 }}>
       <span style={{ fontWeight: 800 }}>{sym}</span>
-      <input type="number" min={0} step={0.5} value={v} onChange={(e) => setV(Number(e.target.value))} style={{ width: 110 }} aria-label="Saved so far" />
-      <button type="button" className="btn sm" onClick={async () => { await api.goals.update(goalId, { savedSoFar: Math.max(0, v) }); setOpen(false); await onDone(); }}>
-        Save
+      <input type="number" min={0.01} step={0.5} value={v} onChange={(e) => setV(Number(e.target.value))} style={{ width: 100 }} aria-label="How much to put in" />
+      <button
+        type="button"
+        className="btn sm"
+        disabled={busy || v <= 0}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await api.goals.save(goalId, v);
+            setOpen(false);
+            await onDone();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? 'Saving…' : 'Add it'}
       </button>
+      <button type="button" className="btn ghost sm" onClick={() => setOpen(false)}>
+        Cancel
+      </button>
+      {error && <span className="small" style={{ color: 'var(--warn-ink)' }}>{error}</span>}
     </span>
   );
 }

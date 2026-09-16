@@ -17,6 +17,9 @@ import type { Goal, IncomeSource, LedgerEntry, Profile } from './repo.js';
 /** Out-categories that really are money leaving. "saving" is a transfer, not a spend. */
 export const SPENDING_CATEGORIES = ['snacks', 'games', 'toys', 'clothes', 'fun', 'sharing', 'other'] as const;
 
+/** In-categories that are real income. A "saving" inflow is money coming back out of the jar. */
+export const INCOME_CATEGORIES = ['allowance', 'chores', 'gift', 'other'] as const;
+
 export interface DeadlinePlan {
   targetDate: string;
   weeksLeft: number;
@@ -73,17 +76,24 @@ export function buildPlan(
   });
   const untilAdultNoGrowth = compoundGrowth({ monthlyContribution: normalized.perMonth * rate, annualRatePct: 0, years: yearsTo18, startingBalance: profile.startingBalance });
 
-  // Moving money into the Save jar is a transfer, not a purchase: the money is
-  // still the kid's, so it does not count as "spent" and does not lower the balance.
+  // The Save jar is a pocket, not a purchase. Money moved into it is still the
+  // kid's, and money taken back out to buy the thing is not new income, so both
+  // sides of a "saving" entry are kept out of the income and spending figures.
   const spentThisMonth = sumSince(ledger, 'out', 30, SPENDING_CATEGORIES);
-  const savedThisMonth = sumSince(ledger, 'out', 30, ['saving']);
-  const receivedThisMonth = sumSince(ledger, 'in', 30);
-  const totalIn = ledger.filter((e) => e.kind === 'in').reduce((s, e) => s + e.amount, 0);
-  const totalOut = ledger.filter((e) => e.kind === 'out').reduce((s, e) => s + e.amount, 0);
-  const inSaveJar = ledger.filter((e) => e.kind === 'out' && e.category === 'saving').reduce((s, e) => s + e.amount, 0);
-  const totalSpent = totalOut - inSaveJar;
-  /** Money the kid still has: what they started with, plus everything in, minus what was actually spent or given away. */
+  const savedThisMonth = sumSince(ledger, 'out', 30, ['saving']) - sumSince(ledger, 'in', 30, ['saving']);
+  const receivedThisMonth = sumSince(ledger, 'in', 30, INCOME_CATEGORIES);
+  const totalIn = ledger.filter((e) => e.kind === 'in' && e.category !== 'saving').reduce((s, e) => s + e.amount, 0);
+  const jarIn = ledger.filter((e) => e.kind === 'out' && e.category === 'saving').reduce((s, e) => s + e.amount, 0);
+  const jarOut = ledger.filter((e) => e.kind === 'in' && e.category === 'saving').reduce((s, e) => s + e.amount, 0);
+  const inSaveJar = Math.max(0, jarIn - jarOut);
+  const totalSpent = ledger.filter((e) => e.kind === 'out' && e.category !== 'saving').reduce((s, e) => s + e.amount, 0);
+  const totalOut = totalSpent + jarIn;
+  /** Everything the kid has, jar included: what they started with, plus income, minus what was really spent. */
   const balanceNow = profile.startingBalance + totalIn - totalSpent;
+  /** Money that is not already promised to a goal. */
+  const spendableNow = balanceNow - inSaveJar;
+  /** True when purchases are logged but income never is, which makes the balance look wrong. */
+  const missingIncome = ledger.length > 0 && totalIn === 0 && profile.startingBalance === 0;
   const savingStreakWeeks = savingStreak(ledger);
   const byCategory: Record<string, number> = {};
   for (const e of ledger) {
@@ -91,7 +101,9 @@ export function buildPlan(
     byCategory[e.category] = (byCategory[e.category] ?? 0) + e.amount;
   }
 
-  const favorite = localGoals.find((g) => g.isFavorite) ?? localGoals[0];
+  const activeGoals = localGoals.filter((g) => !g.completedAt);
+  const doneGoals = localGoals.filter((g) => g.completedAt);
+  const favorite = activeGoals.find((g) => g.isFavorite) ?? activeGoals[0];
   const habitPreview = habits.slice(0, 4).map((h) => ({
     ...h,
     oneYear: skipHabit({ costPerItem: h.price, timesPerWeek: h.timesPerWeek, years: 1, annualRatePct: growth }),
@@ -106,12 +118,14 @@ export function buildPlan(
     split: splitPlan(normalized.perMonth, profile.split),
     balanceOneYear,
     untilAdult: { years: yearsTo18, withGrowth: untilAdult, noGrowth: untilAdultNoGrowth },
-    goals: localGoals.map((g) => ({
+    goals: activeGoals.map((g) => ({
       ...g,
       plans: goalPlans(g.price, normalized.perWeek, g.savedSoFar),
       progress: g.price > 0 ? Math.min(1, g.savedSoFar / g.price) : 1,
       deadline: deadlinePlan(g, normalized.perWeek, rate),
+      reached: g.savedSoFar >= g.price,
     })),
+    doneGoals: doneGoals.map((g) => ({ ...g, progress: 1 })),
     /** A whole year of income expressed in weeks, handy for the wishlist. */
     weeksPerYear: WEEKS_PER_YEAR,
     habits: habitPreview,
@@ -126,6 +140,8 @@ export function buildPlan(
       totalSpent,
       inSaveJar,
       balanceNow,
+      spendableNow,
+      missingIncome,
       savingStreakWeeks,
     },
     insights: buildInsights({

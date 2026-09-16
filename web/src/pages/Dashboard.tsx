@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { equivalentUnits, normalizeSplit, type Cadence, type SplitPercentages } from '@pocketpilot/core';
 import LineChart from '../components/LineChart.tsx';
-import { CADENCE_SHORT, CadencePicker, Card, Hero, Insights, NumberField, Slider, Stat } from '../components/ui.tsx';
+import { CADENCE_SHORT, CadencePicker, Card, Hero, Insights, NumberField, Progress, Slider, Stat } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { useProfile } from '../lib/profile.tsx';
 import { CURRENCIES, currencySymbol } from './Start.tsx';
@@ -87,12 +87,46 @@ export default function Dashboard() {
           value={money(plan.ledgerSummary.balanceNow)}
           delta={
             plan.ledgerSummary.entries > 0
-              ? `${plan.ledgerSummary.inSaveJar > 0 ? `${money(plan.ledgerSummary.inSaveJar)} in the Save jar · ` : ''}${plan.ledgerSummary.savingStreakWeeks > 0 ? `${plan.ledgerSummary.savingStreakWeeks}-week saving streak 🔥` : 'log a "saving" entry to start a streak'}`
+              ? `${plan.ledgerSummary.inSaveJar > 0 ? `${money(plan.ledgerSummary.inSaveJar)} saved for goals · ` : ''}${plan.ledgerSummary.savingStreakWeeks > 0 ? `${plan.ledgerSummary.savingStreakWeeks}-week saving streak 🔥` : 'put money toward a goal to start a streak'}`
               : 'keep the Log to track it'
           }
         />
         <Stat label={profile.age !== null && profile.age < 18 ? 'By age 18' : 'In 10 years'} value={money(plan.untilAdult.withGrowth.finalBalance, { compact: true })} delta={`saving ${Math.round(profile.savingsRate * 100)}% at ${profile.growthRatePct}% growth`} />
       </div>
+
+      {plan.goals.length > 0 && (
+        <Card
+          title="What you are saving for"
+          emoji="🎯"
+          right={
+            <Link className="btn ghost sm" to="/goals">
+              All goals →
+            </Link>
+          }
+        >
+          <ul className="list">
+            {plan.goals.slice(0, 3).map((g) => (
+              <li key={g.id} className="item" style={{ display: 'block' }}>
+                <div className="row spread">
+                  <span>
+                    <span className="emoji" style={{ width: 'auto', marginRight: 8 }}>
+                      {g.emoji}
+                    </span>
+                    <strong>{g.name}</strong>
+                  </span>
+                  <span className="small muted">
+                    {money(g.savedSoFar)} of {money(g.price)}
+                    {g.reached ? ' · ready! 🎉' : g.deadline ? ` · by ${new Date(`${g.deadline.targetDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
+                  </span>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <Progress value={g.progress} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Insights items={plan.insights} />
 
