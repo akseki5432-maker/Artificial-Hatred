@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PocketPilot coin">
+  <rect width="512" height="512" rx="96" fill="#2a78d6"/>
+  <circle cx="256" cy="256" r="150" fill="#eda100"/>
+  <circle cx="256" cy="256" r="118" fill="#fab219"/>
+  <text x="256" y="320" font-family="system-ui, sans-serif" font-size="150" font-weight="800" text-anchor="middle" fill="#7a4b00">$</text>
+</svg>

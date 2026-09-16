@@ -2,6 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
+// These tests share one server, so this file starts from a known empty state.
+test.beforeAll(async ({ request }) => {
+  const profiles = (await (await request.get('/api/profiles')).json()) as { id: number }[];
+  for (const p of profiles) await request.delete(`/api/profiles/${p.id}`);
+});
+
 test('a kid can set up an allowance and see the money map', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/start$/);
@@ -42,7 +48,8 @@ test('the log records allowance day and exports csv', async ({ page }) => {
   await page.goto('/ledger');
   await page.getByRole('button', { name: /I got my allowance/ }).click();
   await expect(page.locator('table')).toContainText('allowance');
-  const res = await page.request.get('/api/profiles/1/ledger.csv');
+  const [profile] = (await (await page.request.get('/api/profiles')).json()) as { id: number }[];
+  const res = await page.request.get(`/api/profiles/${profile.id}/ledger.csv`);
   expect(res.ok()).toBeTruthy();
   expect(await res.text()).toContain('date,kind,amount,currency,category,note');
 });

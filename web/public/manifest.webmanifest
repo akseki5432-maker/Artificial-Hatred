@@ -1,0 +1,12 @@
+{
+  "name": "PocketPilot",
+  "short_name": "PocketPilot",
+  "description": "See what your allowance adds up to, what it can buy, and how to grow it.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f4ee",
+  "theme_color": "#2a78d6",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

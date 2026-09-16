@@ -63,6 +63,12 @@ export const api = {
     csvUrl: (profileId: number) => `/api/profiles/${profileId}/ledger.csv`,
   },
 
+  backup: {
+    url: '/api/backup',
+    profileUrl: (id: number) => `/api/profiles/${id}/backup`,
+    restore: (data: unknown) => request<{ restored: { profiles: number; goals: number; income: number; ledger: number; prices: number } }>('POST', '/backup/restore', data),
+  },
+
   catalog: (currency?: string) => request<Catalog>('GET', currency ? `/catalog?currency=${encodeURIComponent(currency)}` : '/catalog'),
   fx: () => request<FxStatus>('GET', '/fx'),
   earn: (age?: number | null) => request<EarnIdea[]>('GET', age === null || age === undefined ? '/earn' : `/earn?age=${age}`),

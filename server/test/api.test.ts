@@ -226,6 +226,43 @@ describe('API', () => {
     expect(text).toContain(',out,3.5,USD,snacks,chips');
   });
 
+  it('backs up and restores everything', async () => {
+    const backup = await api('GET', '/api/backup');
+    expect(backup.status).toBe(200);
+    expect(backup.json.app).toBe('pocketpilot');
+    expect(backup.json.version).toBe(1);
+    const sam = backup.json.profiles.find((p: { name: string }) => p.name === 'Sam');
+    expect(sam.goals.length).toBeGreaterThan(0);
+    expect(sam.ledger.length).toBeGreaterThan(0);
+    expect(sam.income).toContainEqual({ label: 'Dog walking', amount: 15, cadence: 'weekly' });
+
+    const before = (await api('GET', '/api/profiles')).json.length;
+    const restored = await api('POST', '/api/backup/restore', backup.json);
+    expect(restored.status).toBe(201);
+    expect(restored.json.restored.profiles).toBe(before);
+    // Restoring adds, it never overwrites, so nothing already there can be lost.
+    const after = (await api('GET', '/api/profiles')).json;
+    expect(after.length).toBe(before * 2);
+    const copy = after[after.length - 1];
+    const copyGoals = (await api('GET', `/api/profiles/${copy.id}/goals`)).json;
+    expect(copyGoals.length).toBeGreaterThanOrEqual(0);
+
+    // A single kid can be exported on their own.
+    const one = await api('GET', `/api/profiles/${profileId}/backup`);
+    expect(one.json.profiles).toHaveLength(1);
+    expect(one.json.profiles[0].name).toBe('Sam');
+
+    expect((await api('POST', '/api/backup/restore', { app: 'something-else', version: 1 })).status).toBe(400);
+    expect((await api('POST', '/api/backup/restore', { app: 'pocketpilot', version: 1, profiles: [{ name: '' }] })).status).toBe(400);
+  });
+
+  it('sends basic security headers', async () => {
+    const res = await fetch(`${base}/api/health`);
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+    expect(res.headers.get('x-powered-by')).toBeNull();
+  });
+
   it('serves earning ideas by age', async () => {
     const r = await api('GET', '/api/earn?age=9');
     expect(r.status).toBe(200);

@@ -9,6 +9,7 @@ An allowance coach for kids. Type in what you get each day, week, or month and P
 - **How to earn more** - age-appropriate ways to make money beyond an allowance, and a way to add them to your income.
 - **A money log** - track what comes in and goes out, see where it goes, keep a weekly saving streak, and export to CSV. Moving money to the Save jar counts as a transfer, not a spend, so the balance stays honest.
 - **Lessons** - six short money lessons, each with a three-question quiz and something to try this week.
+- **Backup and restore** - download everything as one JSON file and load it back on another device. Restoring adds, it never overwrites.
 - **Live prices** - search the web for today's price of anything, save it to the catalog, edit prices by hand, and keep a price history.
 - **Any currency** - kids who use euros, pounds, rupees or yen see the catalog and web prices converted with live exchange rates (static fallback table when offline).
 - **Deadlines** - "I want it by June" shows the weekly saving needed and whether the current plan is on track.
@@ -89,6 +90,9 @@ e2e             Playwright smoke tests against the built app, including a phone-
 | GET/POST | `/api/profiles/:id/ledger` | money in / out |
 | GET | `/api/catalog?currency=EUR` | goal + habit catalog with current prices, converted |
 | GET | `/api/fx` | exchange-rate source and date |
+| GET | `/api/backup` | everything as one JSON file |
+| GET | `/api/profiles/:id/backup` | one kid's data |
+| POST | `/api/backup/restore` | load a backup file (adds, never overwrites) |
 | POST | `/api/profiles/:id/ledger/allowance` | one-tap "I got my allowance" entry |
 | GET | `/api/profiles/:id/ledger.csv` | download the log as CSV |
 | GET | `/api/earn?age=10` | earning ideas |
@@ -115,6 +119,16 @@ npm run build
 npm run e2e         # Playwright smoke tests (run npm run build first)
 ```
 
+## Accessibility
+
+The app is built to pass WCAG 2.1 AA and the end-to-end suite enforces it with axe on every page, in
+light and dark mode. Concretely:
+
+- Every chart has a "Show the numbers" table with the same data, so nothing is locked behind colour.
+- Colours are checked, not eyeballed: text and controls clear 4.5:1 on every surface they sit on.
+- A skip link, visible focus rings, labelled form fields, and a `prefers-reduced-motion` rule.
+- No page scrolls sideways at 390px wide, which a test also enforces.
+
 ## Notes on the numbers
 
 - A year is 52 weeks, 12 months, 365 days. Daily allowances are multiplied by 365, weekly by 52, monthly by 12.
@@ -122,3 +136,10 @@ npm run e2e         # Playwright smoke tests (run npm run build first)
 - Catalog prices are typical US list prices as of the date in `CATALOG_LAST_REVIEWED`, meant to be refreshed from the web or edited.
 - Goal progress ("I saved some") is tracked per goal and is separate from the money log, so a kid can track a goal without logging every transaction.
 - The money log treats a `saving` entry as moving money between jars. It lowers neither the balance nor the "spent" total.
+
+## Privacy
+
+Everything stays in the SQLite file on the machine running the server. Nothing is sent anywhere except the
+price and exchange-rate lookups, which send only the search text (for example "kids mountain bike price"),
+never a child's name, age, or amounts. Turn those off with `ENABLE_DDG_SEARCH=0` and `ENABLE_LIVE_FX=0`
+and the app still works from the built-in catalog.

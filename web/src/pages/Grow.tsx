@@ -77,6 +77,7 @@ export default function Grow() {
           </div>
           <Card title="With growth vs. without" emoji="📈">
             <LineChart
+              title={`Saving ${years} years with growth compared with no growth`}
               labels={labels}
               xLabel={(l) => (startAge !== undefined ? `age ${l}` : `year ${l}`)}
               series={[

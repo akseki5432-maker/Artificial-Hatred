@@ -1,4 +1,5 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { ProfileProvider, useProfile } from './lib/profile.tsx';
 import Dashboard from './pages/Dashboard.tsx';
 import Earn from './pages/Earn.tsx';
@@ -25,6 +26,9 @@ function Shell() {
   const { profiles, profile, selectProfile, loading, error } = useProfile();
   return (
     <div className="shell">
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
       <header className="topbar">
         <div className="topbar-inner">
           <NavLink to="/" className="brand">
@@ -39,7 +43,7 @@ function Shell() {
               ))}
             </select>
           )}
-          <nav className="nav">
+          <nav className="nav" aria-label="Sections">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? 'active' : '')}>
                 {n.label}
@@ -51,12 +55,13 @@ function Shell() {
           </nav>
         </div>
       </header>
-      <main className="main">
+      <main className="main" id="main">
         {error && (
           <div className="alert" style={{ marginBottom: 16 }}>
             Could not reach the PocketPilot server: {error}. Is it running?
           </div>
         )}
+        <ErrorBoundary>
         <Routes>
           <Route path="/start" element={<Start />} />
           <Route path="/" element={<Guard loading={loading} ok={profile !== null} element={<Dashboard />} />} />
@@ -69,6 +74,7 @@ function Shell() {
           <Route path="/prices" element={<Prices />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

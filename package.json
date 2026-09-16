@@ -21,7 +21,9 @@
     "node": ">=22.13"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
+    "axe-core": "^4.13.0",
     "concurrently": "^10.0.5",
     "typescript": "~5.9.3",
     "vitest": "^4.0.0"

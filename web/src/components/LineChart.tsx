@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 
 export interface Series {
   name: string;
@@ -16,6 +16,8 @@ interface Props {
   height?: number;
   /** Also show the last value of each series next to its line end. */
   endLabels?: boolean;
+  /** Accessible name for the chart. Falls back to the series names. */
+  title?: string;
 }
 
 const SLOTS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
@@ -36,10 +38,13 @@ function niceTicks(max: number, count = 4): number[] {
  * Small responsive SVG line chart with a hover crosshair and tooltip.
  * One y axis, 2px lines, 8px markers with a surface ring, direct end labels.
  */
-export default function LineChart({ labels, series, format, xLabel, height = 240, endLabels = true }: Props) {
+export default function LineChart({ labels, series, format, xLabel, height = 240, endLabels = true, title }: Props) {
   const width = 640;
   const ref = useRef<HTMLDivElement>(null);
+  const tableId = useId();
   const [hover, setHover] = useState<number | null>(null);
+  const [showTable, setShowTable] = useState(false);
+  const name = title ?? series.map((s) => s.name).join(' versus ');
 
   const maxY = useMemo(() => Math.max(1, ...series.flatMap((s) => s.values)), [series]);
   const ticks = useMemo(() => niceTicks(maxY), [maxY]);
@@ -93,7 +98,7 @@ export default function LineChart({ labels, series, format, xLabel, height = 240
 
   return (
     <div className="chart" ref={ref}>
-      <svg viewBox={`0 0 ${width} ${height}`} onMouseMove={onMove} onMouseLeave={() => setHover(null)} role="img" aria-label={series.map((s) => s.name).join(' vs ')}>
+      <svg viewBox={`0 0 ${width} ${height}`} onMouseMove={onMove} onMouseLeave={() => setHover(null)} role="img" aria-label={`Chart: ${name}. The same numbers are in the table below.`}>
         {ticks.map((t) => (
           <g key={t}>
             <line className="grid-line" x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
@@ -146,16 +151,52 @@ export default function LineChart({ labels, series, format, xLabel, height = 240
           ))}
         </div>
       )}
-      {series.length > 1 && (
-        <div className="legend">
-          {series.map((s, si) => (
-            <span key={s.name}>
-              <span className="key" style={{ background: s.color ?? SLOTS[si % SLOTS.length] }} />
-              {s.name}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="row spread" style={{ alignItems: 'flex-end' }}>
+        {series.length > 1 ? (
+          <div className="legend">
+            {series.map((s, si) => (
+              <span key={s.name}>
+                <span className="key" style={{ background: s.color ?? SLOTS[si % SLOTS.length] }} />
+                {s.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+        <button type="button" className="btn ghost sm" aria-expanded={showTable} aria-controls={tableId} onClick={() => setShowTable((v) => !v)}>
+          {showTable ? 'Hide the numbers' : 'Show the numbers'}
+        </button>
+      </div>
+      <div id={tableId} hidden={!showTable} className="scroll-x">
+        <table>
+          <caption className="visually-hidden">{name}</caption>
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              {series.map((s) => (
+                <th scope="col" className="num" key={s.name}>
+                  {s.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {labels.map((l, i) => (
+              <tr key={i}>
+                <th scope="row" style={{ fontWeight: 400 }}>
+                  {xLabel ? xLabel(l, i) : String(l)}
+                </th>
+                {series.map((s) => (
+                  <td className="num" key={s.name}>
+                    {format(s.values[i] ?? 0)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -163,16 +204,16 @@ export default function LineChart({ labels, series, format, xLabel, height = 240
 export function BarRows({ rows, format, color }: { rows: { label: string; value: number }[]; format: (v: number) => string; color?: string }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
-    <div className="bars">
+    <ul className="bars" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
       {rows.map((r) => (
-        <div key={r.label} className="bar-row" title={`${r.label}: ${format(r.value)}`}>
+        <li key={r.label} className="bar-row">
           <span>{r.label}</span>
-          <div className="track">
+          <div className="track" aria-hidden>
             <div className="fill" style={{ width: `${(r.value / max) * 100}%`, background: color }} />
           </div>
           <span className="val">{format(r.value)}</span>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

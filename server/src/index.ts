@@ -17,7 +17,7 @@ const priceSearch = new PriceSearchService(
 
 const fx = new FxService(db, fetch, config.fxCacheHours, config.enableLiveFx, (msg) => console.warn(`[fx] ${msg}`));
 
-const app = createApp({ db, priceSearch, fx, webDist: config.webDist });
+const app = createApp({ db, priceSearch, fx, webDist: config.webDist, ...(config.corsOrigins ? { corsOrigins: config.corsOrigins } : {}) });
 
 app.listen(config.port, () => {
   const providers = priceSearch

@@ -11,6 +11,9 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
   retries: 0,
+  // One worker: every spec talks to the same server and database.
+  workers: 1,
+  fullyParallel: false,
   reporter: [['list']],
   use: {
     baseURL: `http://localhost:${PORT}`,

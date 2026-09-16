@@ -181,6 +181,7 @@ export default function Dashboard() {
 
       <Card title="Your next 12 months" emoji="📈" right={<span className="pill accent">saving {Math.round(profile.savingsRate * 100)}%</span>}>
         <LineChart
+          title="What you will have over the next 12 months"
           labels={plan.balanceOneYear.map((p) => p.month)}
           xLabel={(l) => (Number(l) === 0 ? 'now' : `month ${l}`)}
           series={[
@@ -277,7 +278,54 @@ function Settings() {
         </button>
         {msg && <span className="small muted">{msg}</span>}
       </div>
+      <hr style={{ border: 0, borderTop: '1px solid var(--border)', margin: '16px 0' }} />
+      <Backup onDone={refresh} />
     </details>
+  );
+}
+
+function Backup({ onDone }: { onDone: () => Promise<void> }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div>
+      <h3 style={{ marginBottom: 4 }}>Backup</h3>
+      <p className="small muted">
+        Everything lives on this computer. Download a backup now and then, especially before moving to a new device.
+      </p>
+      <div className="row">
+        <a className="btn secondary" href={api.backup.url} download>
+          ⬇️ Download a backup
+        </a>
+        <label className="btn secondary" style={{ cursor: 'pointer' }}>
+          ⬆️ Restore from a backup
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="visually-hidden"
+            disabled={busy}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setBusy(true);
+              setMsg(null);
+              try {
+                const data = JSON.parse(await file.text()) as unknown;
+                const r = await api.backup.restore(data);
+                setMsg(`Restored ${r.restored.profiles} kid(s), ${r.restored.goals} goals and ${r.restored.ledger} log entries. Restoring adds to what is here, it never replaces it.`);
+                await onDone();
+              } catch (err) {
+                setMsg(err instanceof Error ? `Could not restore that file: ${err.message}` : String(err));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        </label>
+      </div>
+      {msg && <p className="small" style={{ marginTop: 8 }}>{msg}</p>}
+    </div>
   );
 }
 
