@@ -1,0 +1,31 @@
+{
+  "name": "pocketpilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PocketPilot: an allowance coach that shows kids what their money adds up to, what it can buy, and how to grow it.",
+  "workspaces": [
+    "packages/core",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w packages/core && npm run build -w web && npm run build -w server",
+    "start": "npm run start -w server",
+    "test": "npm run test -w packages/core && npm run test -w server",
+    "typecheck": "npm run typecheck -w packages/core && npm run typecheck -w server && npm run typecheck -w web",
+    "e2e": "playwright test",
+    "e2e:local": "PW_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome playwright test"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "axe-core": "^4.13.0",
+    "concurrently": "^10.0.5",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.0"
+  }
+}
