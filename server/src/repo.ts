@@ -1,0 +1,330 @@
+import { GOAL_CATALOG, HABIT_CATALOG, type Cadence, type CatalogItem, type HabitItem, type SplitPercentages } from '@pocketpilot/core';
+import type { Db } from './db.js';
+
+export interface Profile {
+  id: number;
+  name: string;
+  age: number | null;
+  currency: string;
+  allowanceAmount: number;
+  allowanceCadence: Cadence;
+  savingsRate: number;
+  growthRatePct: number;
+  startingBalance: number;
+  split: SplitPercentages;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfileInput {
+  name: string;
+  age?: number | null;
+  currency?: string;
+  allowanceAmount?: number;
+  allowanceCadence?: Cadence;
+  savingsRate?: number;
+  growthRatePct?: number;
+  startingBalance?: number;
+  split?: SplitPercentages;
+}
+
+export interface IncomeSource {
+  id: number;
+  profileId: number;
+  label: string;
+  amount: number;
+  cadence: Cadence;
+}
+
+export interface Goal {
+  id: number;
+  profileId: number;
+  catalogId: string | null;
+  name: string;
+  emoji: string;
+  price: number;
+  currency: string;
+  searchQuery: string | null;
+  savedSoFar: number;
+  isFavorite: boolean;
+  createdAt: string;
+}
+
+export interface LedgerEntry {
+  id: number;
+  profileId: number;
+  kind: 'in' | 'out';
+  amount: number;
+  category: string;
+  note: string | null;
+  at: string;
+}
+
+export interface PriceRecord {
+  key: string;
+  name: string;
+  price: number;
+  currency: string;
+  source: string;
+  query: string | null;
+  note: string | null;
+  fetchedAt: string;
+}
+
+type Row = Record<string, unknown>;
+
+function rowToProfile(r: Row): Profile {
+  let split: SplitPercentages = { save: 40, spend: 40, share: 10, invest: 10 };
+  try {
+    split = { ...split, ...(JSON.parse(String(r.split_json)) as Partial<SplitPercentages>) };
+  } catch {
+    /* keep default */
+  }
+  return {
+    id: Number(r.id),
+    name: String(r.name),
+    age: r.age === null || r.age === undefined ? null : Number(r.age),
+    currency: String(r.currency),
+    allowanceAmount: Number(r.allowance_amount),
+    allowanceCadence: String(r.allowance_cadence) as Cadence,
+    savingsRate: Number(r.savings_rate),
+    growthRatePct: Number(r.growth_rate_pct),
+    startingBalance: Number(r.starting_balance),
+    split,
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+  };
+}
+
+function rowToGoal(r: Row): Goal {
+  return {
+    id: Number(r.id),
+    profileId: Number(r.profile_id),
+    catalogId: r.catalog_id === null ? null : String(r.catalog_id),
+    name: String(r.name),
+    emoji: String(r.emoji),
+    price: Number(r.price),
+    currency: String(r.currency),
+    searchQuery: r.search_query === null ? null : String(r.search_query),
+    savedSoFar: Number(r.saved_so_far),
+    isFavorite: Number(r.is_favorite) === 1,
+    createdAt: String(r.created_at),
+  };
+}
+
+function rowToLedger(r: Row): LedgerEntry {
+  return {
+    id: Number(r.id),
+    profileId: Number(r.profile_id),
+    kind: String(r.kind) as 'in' | 'out',
+    amount: Number(r.amount),
+    category: String(r.category),
+    note: r.note === null ? null : String(r.note),
+    at: String(r.at),
+  };
+}
+
+function rowToPrice(r: Row): PriceRecord {
+  return {
+    key: String(r.key),
+    name: String(r.name),
+    price: Number(r.price),
+    currency: String(r.currency),
+    source: String(r.source),
+    query: r.query === null ? null : String(r.query),
+    note: r.note === null ? null : String(r.note),
+    fetchedAt: String(r.fetched_at),
+  };
+}
+
+export class Repo {
+  constructor(private readonly db: Db) {}
+
+  // ----- profiles -----
+  listProfiles(): Profile[] {
+    return (this.db.prepare('SELECT * FROM profiles ORDER BY id').all() as Row[]).map(rowToProfile);
+  }
+
+  getProfile(id: number): Profile | null {
+    const row = this.db.prepare('SELECT * FROM profiles WHERE id = ?').get(id) as Row | undefined;
+    return row ? rowToProfile(row) : null;
+  }
+
+  createProfile(input: ProfileInput): Profile {
+    const res = this.db
+      .prepare(
+        `INSERT INTO profiles (name, age, currency, allowance_amount, allowance_cadence, savings_rate, growth_rate_pct, starting_balance, split_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.name,
+        input.age ?? null,
+        input.currency ?? 'USD',
+        input.allowanceAmount ?? 0,
+        input.allowanceCadence ?? 'weekly',
+        input.savingsRate ?? 0.5,
+        input.growthRatePct ?? 7,
+        input.startingBalance ?? 0,
+        JSON.stringify(input.split ?? { save: 40, spend: 40, share: 10, invest: 10 }),
+      );
+    return this.getProfile(Number(res.lastInsertRowid)) as Profile;
+  }
+
+  updateProfile(id: number, input: Partial<ProfileInput>): Profile | null {
+    const current = this.getProfile(id);
+    if (!current) return null;
+    const next = {
+      name: input.name ?? current.name,
+      age: input.age === undefined ? current.age : input.age,
+      currency: input.currency ?? current.currency,
+      allowanceAmount: input.allowanceAmount ?? current.allowanceAmount,
+      allowanceCadence: input.allowanceCadence ?? current.allowanceCadence,
+      savingsRate: input.savingsRate ?? current.savingsRate,
+      growthRatePct: input.growthRatePct ?? current.growthRatePct,
+      startingBalance: input.startingBalance ?? current.startingBalance,
+      split: input.split ?? current.split,
+    };
+    this.db
+      .prepare(
+        `UPDATE profiles SET name=?, age=?, currency=?, allowance_amount=?, allowance_cadence=?, savings_rate=?, growth_rate_pct=?, starting_balance=?, split_json=?, updated_at=datetime('now')
+         WHERE id=?`,
+      )
+      .run(
+        next.name,
+        next.age,
+        next.currency,
+        next.allowanceAmount,
+        next.allowanceCadence,
+        next.savingsRate,
+        next.growthRatePct,
+        next.startingBalance,
+        JSON.stringify(next.split),
+        id,
+      );
+    return this.getProfile(id);
+  }
+
+  deleteProfile(id: number): boolean {
+    return this.db.prepare('DELETE FROM profiles WHERE id = ?').run(id).changes > 0;
+  }
+
+  // ----- income sources -----
+  listIncome(profileId: number): IncomeSource[] {
+    return (this.db.prepare('SELECT * FROM income_sources WHERE profile_id = ? ORDER BY id').all(profileId) as Row[]).map((r) => ({
+      id: Number(r.id),
+      profileId: Number(r.profile_id),
+      label: String(r.label),
+      amount: Number(r.amount),
+      cadence: String(r.cadence) as Cadence,
+    }));
+  }
+
+  addIncome(profileId: number, label: string, amount: number, cadence: Cadence): IncomeSource {
+    const res = this.db.prepare('INSERT INTO income_sources (profile_id, label, amount, cadence) VALUES (?, ?, ?, ?)').run(profileId, label, amount, cadence);
+    return { id: Number(res.lastInsertRowid), profileId, label, amount, cadence };
+  }
+
+  deleteIncome(id: number): boolean {
+    return this.db.prepare('DELETE FROM income_sources WHERE id = ?').run(id).changes > 0;
+  }
+
+  // ----- goals -----
+  listGoals(profileId: number): Goal[] {
+    return (this.db.prepare('SELECT * FROM goals WHERE profile_id = ? ORDER BY is_favorite DESC, id').all(profileId) as Row[]).map(rowToGoal);
+  }
+
+  getGoal(id: number): Goal | null {
+    const row = this.db.prepare('SELECT * FROM goals WHERE id = ?').get(id) as Row | undefined;
+    return row ? rowToGoal(row) : null;
+  }
+
+  createGoal(profileId: number, g: Omit<Goal, 'id' | 'profileId' | 'createdAt'>): Goal {
+    const res = this.db
+      .prepare(
+        `INSERT INTO goals (profile_id, catalog_id, name, emoji, price, currency, search_query, saved_so_far, is_favorite)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(profileId, g.catalogId, g.name, g.emoji, g.price, g.currency, g.searchQuery, g.savedSoFar, g.isFavorite ? 1 : 0);
+    return this.getGoal(Number(res.lastInsertRowid)) as Goal;
+  }
+
+  updateGoal(id: number, patch: Partial<Omit<Goal, 'id' | 'profileId' | 'createdAt'>>): Goal | null {
+    const cur = this.getGoal(id);
+    if (!cur) return null;
+    const next = { ...cur, ...patch };
+    this.db
+      .prepare('UPDATE goals SET catalog_id=?, name=?, emoji=?, price=?, currency=?, search_query=?, saved_so_far=?, is_favorite=? WHERE id=?')
+      .run(next.catalogId, next.name, next.emoji, next.price, next.currency, next.searchQuery, next.savedSoFar, next.isFavorite ? 1 : 0, id);
+    return this.getGoal(id);
+  }
+
+  deleteGoal(id: number): boolean {
+    return this.db.prepare('DELETE FROM goals WHERE id = ?').run(id).changes > 0;
+  }
+
+  // ----- ledger -----
+  listLedger(profileId: number, limit = 200): LedgerEntry[] {
+    return (this.db.prepare('SELECT * FROM ledger WHERE profile_id = ? ORDER BY at DESC, id DESC LIMIT ?').all(profileId, limit) as Row[]).map(rowToLedger);
+  }
+
+  addLedger(profileId: number, e: { kind: 'in' | 'out'; amount: number; category: string; note?: string | null; at?: string }): LedgerEntry {
+    const res = this.db
+      .prepare("INSERT INTO ledger (profile_id, kind, amount, category, note, at) VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))")
+      .run(profileId, e.kind, e.amount, e.category, e.note ?? null, e.at ?? null);
+    const row = this.db.prepare('SELECT * FROM ledger WHERE id = ?').get(Number(res.lastInsertRowid)) as Row;
+    return rowToLedger(row);
+  }
+
+  deleteLedger(id: number): boolean {
+    return this.db.prepare('DELETE FROM ledger WHERE id = ?').run(id).changes > 0;
+  }
+
+  // ----- prices -----
+  listPrices(): PriceRecord[] {
+    return (this.db.prepare('SELECT * FROM prices').all() as Row[]).map(rowToPrice);
+  }
+
+  getPrice(key: string): PriceRecord | null {
+    const row = this.db.prepare('SELECT * FROM prices WHERE key = ?').get(key) as Row | undefined;
+    return row ? rowToPrice(row) : null;
+  }
+
+  setPrice(p: { key: string; name: string; price: number; currency: string; source: string; query?: string | null; note?: string | null }): PriceRecord {
+    this.db
+      .prepare(
+        `INSERT INTO prices (key, name, price, currency, source, query, note, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET name=excluded.name, price=excluded.price, currency=excluded.currency, source=excluded.source, query=excluded.query, note=excluded.note, fetched_at=excluded.fetched_at`,
+      )
+      .run(p.key, p.name, p.price, p.currency, p.source, p.query ?? null, p.note ?? null);
+    this.db.prepare('INSERT INTO price_history (key, price, currency, source) VALUES (?, ?, ?, ?)').run(p.key, p.price, p.currency, p.source);
+    return this.getPrice(p.key) as PriceRecord;
+  }
+
+  resetPrice(key: string): boolean {
+    return this.db.prepare('DELETE FROM prices WHERE key = ?').run(key).changes > 0;
+  }
+
+  priceHistory(key: string, limit = 50): { price: number; currency: string; source: string; at: string }[] {
+    return (this.db.prepare('SELECT price, currency, source, at FROM price_history WHERE key = ? ORDER BY at DESC, id DESC LIMIT ?').all(key, limit) as Row[]).map((r) => ({
+      price: Number(r.price),
+      currency: String(r.currency),
+      source: String(r.source),
+      at: String(r.at),
+    }));
+  }
+
+  /** Catalog with any stored price overrides applied. */
+  catalogWithPrices(): { goals: (CatalogItem & { source: string; fetchedAt: string | null })[]; habits: (HabitItem & { source: string; fetchedAt: string | null })[] } {
+    const overrides = new Map(this.listPrices().map((p) => [p.key, p]));
+    const apply = <T extends { id: string; price: number; currency: string }>(prefix: string, item: T) => {
+      const o = overrides.get(`${prefix}:${item.id}`);
+      return o
+        ? { ...item, price: o.price, currency: o.currency, source: o.source, fetchedAt: o.fetchedAt }
+        : { ...item, source: 'catalog', fetchedAt: null };
+    };
+    return {
+      goals: GOAL_CATALOG.map((g) => apply('goal', g)),
+      habits: HABIT_CATALOG.map((h) => apply('habit', h)),
+    };
+  }
+}

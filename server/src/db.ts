@@ -1,0 +1,97 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
+export type Db = DatabaseSync;
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS profiles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  age INTEGER,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  allowance_amount REAL NOT NULL DEFAULT 0,
+  allowance_cadence TEXT NOT NULL DEFAULT 'weekly',
+  savings_rate REAL NOT NULL DEFAULT 0.5,
+  growth_rate_pct REAL NOT NULL DEFAULT 7,
+  starting_balance REAL NOT NULL DEFAULT 0,
+  split_json TEXT NOT NULL DEFAULT '{"save":40,"spend":40,"share":10,"invest":10}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS income_sources (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  amount REAL NOT NULL,
+  cadence TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  catalog_id TEXT,
+  name TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '🎯',
+  price REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  search_query TEXT,
+  saved_so_far REAL NOT NULL DEFAULT 0,
+  is_favorite INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS prices (
+  key TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  price REAL NOT NULL,
+  currency TEXT NOT NULL,
+  source TEXT NOT NULL,
+  query TEXT,
+  note TEXT,
+  fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS price_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL,
+  price REAL NOT NULL,
+  currency TEXT NOT NULL,
+  source TEXT NOT NULL,
+  at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_price_history_key ON price_history(key, at);
+
+CREATE TABLE IF NOT EXISTS price_cache (
+  cache_key TEXT PRIMARY KEY,
+  result_json TEXT NOT NULL,
+  fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('in', 'out')),
+  amount REAL NOT NULL,
+  category TEXT NOT NULL DEFAULT 'other',
+  note TEXT,
+  at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_profile ON ledger(profile_id, at);
+`;
+
+export function openDb(filePath: string): Db {
+  if (filePath !== ':memory:') {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  }
+  const db = new DatabaseSync(filePath);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA foreign_keys = ON;');
+  db.exec(SCHEMA);
+  return db;
+}
+
+export function nowIso(): string {
+  return new Date().toISOString();
+}
