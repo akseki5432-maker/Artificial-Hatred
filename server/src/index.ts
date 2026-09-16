@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { createApp } from './app.js';
 import { openDb } from './db.js';
+import { FxService } from './services/fx.js';
 import { PriceSearchService } from './services/priceSearch/index.js';
 import { BraveProvider } from './services/priceSearch/providers/brave.js';
 import { DuckDuckGoProvider } from './services/priceSearch/providers/duckduckgo.js';
@@ -14,7 +15,9 @@ const priceSearch = new PriceSearchService(
   (msg) => console.warn(`[price-search] ${msg}`),
 );
 
-const app = createApp({ db, priceSearch, webDist: config.webDist });
+const fx = new FxService(db, fetch, config.fxCacheHours, config.enableLiveFx, (msg) => console.warn(`[fx] ${msg}`));
+
+const app = createApp({ db, priceSearch, fx, webDist: config.webDist });
 
 app.listen(config.port, () => {
   const providers = priceSearch

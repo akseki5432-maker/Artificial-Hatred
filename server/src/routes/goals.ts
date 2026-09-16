@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { findCatalogItem } from '@pocketpilot/core';
 import { HttpError, idParam } from '../app.js';
 import type { Repo } from '../repo.js';
+import type { FxService } from '../services/fx.js';
 
 const goalInput = z.object({
   catalogId: z.string().trim().max(60).nullable().optional(),
@@ -13,33 +14,46 @@ const goalInput = z.object({
   searchQuery: z.string().trim().max(200).nullable().optional(),
   savedSoFar: z.number().min(0).max(10_000_000).optional(),
   isFavorite: z.boolean().optional(),
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD').nullable().optional(),
 });
 
-export function goalsRouter(repo: Repo) {
+export function goalsRouter(repo: Repo, fx: FxService) {
   const r = Router();
 
   r.get('/profiles/:id/goals', (req, res) => {
     res.json(repo.listGoals(idParam(req)));
   });
 
-  r.post('/profiles/:id/goals', (req, res) => {
+  r.post('/profiles/:id/goals', async (req, res) => {
     const profileId = idParam(req);
-    if (!repo.getProfile(profileId)) throw new HttpError(404, 'Profile not found');
+    const profile = repo.getProfile(profileId);
+    if (!profile) throw new HttpError(404, 'Profile not found');
     const input = goalInput.parse(req.body);
     const fromCatalog = input.catalogId ? findCatalogItem(input.catalogId) : undefined;
     const stored = input.catalogId ? repo.getPrice(`goal:${input.catalogId}`) : null;
     const name = input.name ?? fromCatalog?.name;
-    const price = input.price ?? stored?.price ?? fromCatalog?.price;
+    let price = input.price ?? stored?.price ?? fromCatalog?.price;
+    let currency = input.currency ?? (input.price !== undefined ? profile.currency : (stored?.currency ?? fromCatalog?.currency ?? profile.currency));
     if (!name || price === undefined) throw new HttpError(400, 'A goal needs a name and a price (or a valid catalogId)');
+    // Store goals in the kid's currency so progress and prices line up.
+    if (currency.toUpperCase() !== profile.currency.toUpperCase()) {
+      try {
+        price = await fx.convert(price, currency, profile.currency);
+        currency = profile.currency;
+      } catch {
+        /* keep the original currency; the plan converts for display when it can */
+      }
+    }
     const goal = repo.createGoal(profileId, {
       catalogId: input.catalogId ?? null,
       name,
       emoji: input.emoji ?? fromCatalog?.emoji ?? '🎯',
       price,
-      currency: input.currency ?? stored?.currency ?? fromCatalog?.currency ?? 'USD',
+      currency,
       searchQuery: input.searchQuery ?? fromCatalog?.searchQuery ?? `${name} price`,
       savedSoFar: input.savedSoFar ?? 0,
       isFavorite: input.isFavorite ?? false,
+      targetDate: input.targetDate ?? null,
     });
     res.status(201).json(goal);
   });

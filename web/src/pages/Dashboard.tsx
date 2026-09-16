@@ -83,7 +83,7 @@ export default function Dashboard() {
         <Stat label="Every day" value={money(n.perDay)} />
         <Stat label="Every week" value={money(n.perWeek)} />
         <Stat label="Every month" value={money(n.perMonth)} />
-        <Stat label={`By age ${profile.age !== null ? 18 : '+10 years'}`} value={money(plan.untilAdult.withGrowth.finalBalance, { compact: true })} delta={`saving ${Math.round(profile.savingsRate * 100)}% at ${profile.growthRatePct}% growth`} />
+        <Stat label={profile.age !== null && profile.age < 18 ? 'By age 18' : 'In 10 years'} value={money(plan.untilAdult.withGrowth.finalBalance, { compact: true })} delta={`saving ${Math.round(profile.savingsRate * 100)}% at ${profile.growthRatePct}% growth`} />
       </div>
 
       <Insights items={plan.insights} />
@@ -108,7 +108,7 @@ export default function Dashboard() {
                         {money(s.amount)} {CADENCE_SHORT[s.cadence]}
                       </div>
                     </div>
-                    <RemoveIncome profileId={profile.id} label={s.label ?? ''} onDone={refresh} />
+                    {s.id !== null && <RemoveIncome profileId={profile.id} incomeId={s.id} onDone={refresh} />}
                   </li>
                 ))}
               </ul>
@@ -187,15 +187,13 @@ export default function Dashboard() {
   );
 }
 
-function RemoveIncome({ profileId, label, onDone }: { profileId: number; label: string; onDone: () => Promise<void> }) {
+function RemoveIncome({ profileId, incomeId, onDone }: { profileId: number; incomeId: number; onDone: () => Promise<void> }) {
   return (
     <button
       type="button"
       className="btn ghost sm"
       onClick={async () => {
-        const list = await api.profiles.get(profileId);
-        const match = list.income.find((i) => i.label === label);
-        if (match) await api.profiles.removeIncome(profileId, match.id);
+        await api.profiles.removeIncome(profileId, incomeId);
         await onDone();
       }}
     >

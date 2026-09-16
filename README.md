@@ -9,6 +9,9 @@ An allowance coach for kids. Type in what you get each day, week, or month and P
 - **How to earn more** - age-appropriate ways to make money beyond an allowance, and a way to add them to your income.
 - **A money log** - track what comes in and goes out and see where it goes.
 - **Live prices** - search the web for today's price of anything, save it to the catalog, edit prices by hand, and keep a price history.
+- **Any currency** - kids who use euros, pounds, rupees or yen see the catalog and web prices converted with live exchange rates (static fallback table when offline).
+- **Deadlines** - "I want it by June" shows the weekly saving needed and whether the current plan is on track.
+- **A year's shopping cart** - tap several things and see what share of a year's allowance they eat.
 
 ## Quick start
 
@@ -45,6 +48,12 @@ Providers are tried in order and the first one that returns a price wins. Result
 Without any provider the app still works with the built-in catalog prices, and every price can be edited by hand.
 Prices found online or set by hand are stored per catalog item with a full history.
 
+### Exchange rates
+
+Catalog prices are in USD. When a kid's profile uses another currency the API converts on the way out using live rates from
+[frankfurter.app](https://www.frankfurter.app) (free, no key, cached 24h in SQLite). If that is unreachable, a built-in
+approximate table is used and the Prices page says so. `ENABLE_LIVE_FX=0` turns the live lookup off.
+
 ## Project layout
 
 ```
@@ -74,7 +83,10 @@ web             React 19 + Vite + React Router. Kid-friendly UI, light/dark, pho
 | GET/POST | `/api/profiles/:id/goals` | goals (from the catalog by `catalogId`, or custom) |
 | PUT/DELETE | `/api/goals/:id` | update progress, favorite, price |
 | GET/POST | `/api/profiles/:id/ledger` | money in / out |
-| GET | `/api/catalog` | goal + habit catalog with current prices |
+| GET | `/api/catalog?currency=EUR` | goal + habit catalog with current prices, converted |
+| GET | `/api/fx` | exchange-rate source and date |
+| POST | `/api/profiles/:id/ledger/allowance` | one-tap "I got my allowance" entry |
+| GET | `/api/profiles/:id/ledger.csv` | download the log as CSV |
 | GET | `/api/earn?age=10` | earning ideas |
 | POST | `/api/prices/search` | `{ query, currency?, applyToKey?, fresh? }` search the web |
 | PUT/DELETE | `/api/prices/:key` | set a price by hand / reset to catalog |
@@ -82,6 +94,13 @@ web             React 19 + Vite + React Router. Kid-friendly UI, light/dark, pho
 | POST | `/api/prices/refresh` | refresh every catalog price from the web |
 
 Price keys look like `goal:bike` or `habit:boba`.
+
+## Docker
+
+```bash
+docker build -t pocketpilot .
+docker run -p 3001:3001 -v pocketpilot-data:/data --env-file .env pocketpilot
+```
 
 ## Scripts
 

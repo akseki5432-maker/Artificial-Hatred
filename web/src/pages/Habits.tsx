@@ -9,7 +9,7 @@ import type { Catalog, PricedHabit } from '../lib/types.ts';
 
 export default function Habits() {
   const { profile, plan, money } = useProfile();
-  const catalog = useAsync<Catalog>(() => api.catalog(), []);
+  const catalog = useAsync<Catalog>(() => api.catalog(profile?.currency), [profile?.currency]);
   const [selected, setSelected] = useState<PricedHabit | null>(null);
   const [cost, setCost] = useState(2.5);
   const [times, setTimes] = useState(5);

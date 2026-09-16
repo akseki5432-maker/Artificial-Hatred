@@ -6,6 +6,7 @@ import { ZodError } from 'zod';
 import type { Db } from './db.js';
 import { Repo } from './repo.js';
 import { PriceSearchError, type PriceSearchService } from './services/priceSearch/index.js';
+import type { FxService } from './services/fx.js';
 import { catalogRouter } from './routes/catalog.js';
 import { ledgerRouter } from './routes/ledger.js';
 import { profilesRouter } from './routes/profiles.js';
@@ -14,6 +15,7 @@ import { goalsRouter } from './routes/goals.js';
 export interface AppDeps {
   db: Db;
   priceSearch: PriceSearchService;
+  fx: FxService;
   /** Directory of the built web app to serve; skipped when missing. */
   webDist?: string;
 }
@@ -38,10 +40,14 @@ export function createApp(deps: AppDeps) {
     res.json({ ok: true, providers: deps.priceSearch.providerStatus(), time: new Date().toISOString() });
   });
 
-  app.use('/api/profiles', profilesRouter(repo));
-  app.use('/api', goalsRouter(repo));
+  app.get('/api/fx', async (_req, res) => {
+    res.json(await deps.fx.status());
+  });
+
+  app.use('/api/profiles', profilesRouter(repo, deps.fx));
+  app.use('/api', goalsRouter(repo, deps.fx));
   app.use('/api', ledgerRouter(repo));
-  app.use('/api', catalogRouter(repo, deps.priceSearch));
+  app.use('/api', catalogRouter(repo, deps.priceSearch, deps.fx));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });

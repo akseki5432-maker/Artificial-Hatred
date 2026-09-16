@@ -69,6 +69,12 @@ CREATE TABLE IF NOT EXISTS price_cache (
   fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS fx_rates (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  table_json TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -89,7 +95,16 @@ export function openDb(filePath: string): Db {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  ensureColumn(db, 'goals', 'target_date', 'TEXT');
   return db;
+}
+
+/** Add a column to an existing table if it is missing (tiny forward-only migration). */
+export function ensureColumn(db: Db, table: string, column: string, ddl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
 }
 
 export function nowIso(): string {

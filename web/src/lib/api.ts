@@ -1,4 +1,4 @@
-import type { Catalog, EarnIdea, Goal, IncomeSource, LedgerEntry, Plan, PriceRecord, PriceSearchResult, Profile, ProviderStatus } from './types.ts';
+import type { Catalog, EarnIdea, FxStatus, Goal, IncomeSource, LedgerEntry, Plan, PriceRecord, PriceSearchResult, Profile, ProviderStatus } from './types.ts';
 
 export class ApiError extends Error {
   constructor(
@@ -59,9 +59,12 @@ export const api = {
     add: (profileId: number, input: { kind: 'in' | 'out'; amount: number; category?: string; note?: string | null }) =>
       request<LedgerEntry>('POST', `/profiles/${profileId}/ledger`, input),
     remove: (id: number) => request<void>('DELETE', `/ledger/${id}`),
+    addAllowance: (profileId: number) => request<LedgerEntry>('POST', `/profiles/${profileId}/ledger/allowance`),
+    csvUrl: (profileId: number) => `/api/profiles/${profileId}/ledger.csv`,
   },
 
-  catalog: () => request<Catalog>('GET', '/catalog'),
+  catalog: (currency?: string) => request<Catalog>('GET', currency ? `/catalog?currency=${encodeURIComponent(currency)}` : '/catalog'),
+  fx: () => request<FxStatus>('GET', '/fx'),
   earn: (age?: number | null) => request<EarnIdea[]>('GET', age === null || age === undefined ? '/earn' : `/earn?age=${age}`),
 
   prices: {

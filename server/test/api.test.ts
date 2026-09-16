@@ -3,6 +3,7 @@ import type { Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { openDb } from '../src/db.js';
+import { FxService } from '../src/services/fx.js';
 import { PriceSearchService } from '../src/services/priceSearch/index.js';
 import type { PriceProvider } from '../src/services/priceSearch/types.js';
 
@@ -38,7 +39,8 @@ async function api(method: string, path: string, body?: unknown) {
 
 beforeAll(async () => {
   const db = openDb(':memory:');
-  const app = createApp({ db, priceSearch: new PriceSearchService([fakeProvider], db, 1) });
+  const fx = new FxService(db, async () => new Response(JSON.stringify({ base: 'USD', date: '2026-09-10', rates: { EUR: 0.5 } }), { status: 200 }), 24);
+  const app = createApp({ db, priceSearch: new PriceSearchService([fakeProvider], db, 1), fx });
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => resolve());
   });
@@ -141,6 +143,63 @@ describe('API', () => {
     expect(r.status).toBe(200);
     expect(r.json.updated.length).toBeGreaterThan(30);
     expect(r.json.failed).toEqual([]);
+  });
+
+  it('converts prices for a kid who uses euros', async () => {
+    const eu = await api('POST', '/api/profiles', { name: 'Lena', age: 12, currency: 'EUR', allowanceAmount: 20, allowanceCadence: 'weekly' });
+    expect(eu.status).toBe(201);
+    const catalog = await api('GET', '/api/catalog?currency=EUR');
+    const bike = catalog.json.goals.find((g: { id: string }) => g.id === 'bike');
+    expect(catalog.json.currency).toBe('EUR');
+    // The refresh test above set every catalog price to the fake provider's $110 median.
+    expect(bike.price).toBe(55);
+    expect(bike.currency).toBe('EUR');
+    expect(bike.originalPrice).toBe(110);
+    expect(bike.originalCurrency).toBe('USD');
+    const goal = await api('POST', `/api/profiles/${eu.json.id}/goals`, { catalogId: 'bike' });
+    expect(goal.json.price).toBe(55);
+    expect(goal.json.currency).toBe('EUR');
+    const custom = await api('POST', `/api/profiles/${eu.json.id}/goals`, { name: 'Guitar', price: 100 });
+    expect(custom.json.currency).toBe('EUR');
+    expect(custom.json.price).toBe(100);
+    const search = await api('POST', '/api/prices/search', { query: 'guitar', currency: 'EUR' });
+    expect(search.json.summary.currency).toBe('USD');
+    expect(search.json.converted).toEqual({ currency: 'EUR', price: 55, low: 50, high: 60 });
+    const fxStatus = await api('GET', '/api/fx');
+    expect(fxStatus.json.source).toBe('live');
+    expect(fxStatus.json.currencies).toContain('EUR');
+    const plan = await api('GET', `/api/profiles/${eu.json.id}/plan`);
+    expect(plan.json.habits[0].currency).toBe('EUR');
+  });
+
+  it('plans toward a deadline', async () => {
+    const soon = new Date(Date.now() + 10 * 7 * 86400_000).toISOString().slice(0, 10);
+    const goal = await api('POST', `/api/profiles/${profileId}/goals`, { name: 'Camp', price: 100, targetDate: soon });
+    expect(goal.status).toBe(201);
+    expect(goal.json.targetDate).toBe(soon);
+    const plan = await api('GET', `/api/profiles/${profileId}/plan`);
+    const camp = plan.json.goals.find((g: { name: string }) => g.name === 'Camp');
+    expect(camp.deadline.weeksLeft).toBeGreaterThan(9.9);
+    expect(camp.deadline.weeksLeft).toBeLessThanOrEqual(10);
+    expect(camp.deadline.neededPerWeek).toBeCloseTo(10, 0);
+    expect(camp.deadline.onTrack).toBe(true);
+    expect((await api('POST', `/api/profiles/${profileId}/goals`, { name: 'Bad', price: 1, targetDate: 'tomorrow' })).status).toBe(400);
+    const cleared = await api('PUT', `/api/goals/${goal.json.id}`, { targetDate: null });
+    expect(cleared.json.targetDate).toBeNull();
+  });
+
+  it('logs allowance day and exports csv', async () => {
+    const quick = await api('POST', `/api/profiles/${profileId}/ledger/allowance`);
+    expect(quick.status).toBe(201);
+    expect(quick.json.amount).toBe(10);
+    expect(quick.json.category).toBe('allowance');
+    const res = await fetch(`${base}/api/profiles/${profileId}/ledger.csv`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/csv');
+    const text = await res.text();
+    expect(text.split('\n')[0]).toBe('date,kind,amount,currency,category,note');
+    expect(text).toContain(',in,10,USD,allowance,Allowance');
+    expect(text).toContain(',out,3.5,USD,snacks,chips');
   });
 
   it('serves earning ideas by age', async () => {

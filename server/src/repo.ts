@@ -1,4 +1,4 @@
-import { GOAL_CATALOG, HABIT_CATALOG, type Cadence, type CatalogItem, type HabitItem, type SplitPercentages } from '@pocketpilot/core';
+import { GOAL_CATALOG, HABIT_CATALOG, canConvert, convertPrice, type Cadence, type CatalogItem, type HabitItem, type RateTable, type SplitPercentages } from '@pocketpilot/core';
 import type { Db } from './db.js';
 
 export interface Profile {
@@ -47,6 +47,8 @@ export interface Goal {
   searchQuery: string | null;
   savedSoFar: number;
   isFavorite: boolean;
+  /** ISO date (YYYY-MM-DD) the kid wants it by, if any. */
+  targetDate: string | null;
   createdAt: string;
 }
 
@@ -72,6 +74,14 @@ export interface PriceRecord {
 }
 
 type Row = Record<string, unknown>;
+
+export type PricedItem<T> = T & {
+  source: string;
+  fetchedAt: string | null;
+  /** Price and currency before conversion to the requested currency. */
+  originalPrice: number;
+  originalCurrency: string;
+};
 
 function rowToProfile(r: Row): Profile {
   let split: SplitPercentages = { save: 40, spend: 40, share: 10, invest: 10 };
@@ -108,6 +118,7 @@ function rowToGoal(r: Row): Goal {
     searchQuery: r.search_query === null ? null : String(r.search_query),
     savedSoFar: Number(r.saved_so_far),
     isFavorite: Number(r.is_favorite) === 1,
+    targetDate: r.target_date === null || r.target_date === undefined ? null : String(r.target_date),
     createdAt: String(r.created_at),
   };
 }
@@ -241,10 +252,10 @@ export class Repo {
   createGoal(profileId: number, g: Omit<Goal, 'id' | 'profileId' | 'createdAt'>): Goal {
     const res = this.db
       .prepare(
-        `INSERT INTO goals (profile_id, catalog_id, name, emoji, price, currency, search_query, saved_so_far, is_favorite)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO goals (profile_id, catalog_id, name, emoji, price, currency, search_query, saved_so_far, is_favorite, target_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(profileId, g.catalogId, g.name, g.emoji, g.price, g.currency, g.searchQuery, g.savedSoFar, g.isFavorite ? 1 : 0);
+      .run(profileId, g.catalogId, g.name, g.emoji, g.price, g.currency, g.searchQuery, g.savedSoFar, g.isFavorite ? 1 : 0, g.targetDate);
     return this.getGoal(Number(res.lastInsertRowid)) as Goal;
   }
 
@@ -253,8 +264,8 @@ export class Repo {
     if (!cur) return null;
     const next = { ...cur, ...patch };
     this.db
-      .prepare('UPDATE goals SET catalog_id=?, name=?, emoji=?, price=?, currency=?, search_query=?, saved_so_far=?, is_favorite=? WHERE id=?')
-      .run(next.catalogId, next.name, next.emoji, next.price, next.currency, next.searchQuery, next.savedSoFar, next.isFavorite ? 1 : 0, id);
+      .prepare('UPDATE goals SET catalog_id=?, name=?, emoji=?, price=?, currency=?, search_query=?, saved_so_far=?, is_favorite=?, target_date=? WHERE id=?')
+      .run(next.catalogId, next.name, next.emoji, next.price, next.currency, next.searchQuery, next.savedSoFar, next.isFavorite ? 1 : 0, next.targetDate, id);
     return this.getGoal(id);
   }
 
@@ -313,18 +324,25 @@ export class Repo {
     }));
   }
 
-  /** Catalog with any stored price overrides applied. */
-  catalogWithPrices(): { goals: (CatalogItem & { source: string; fetchedAt: string | null })[]; habits: (HabitItem & { source: string; fetchedAt: string | null })[] } {
+  /**
+   * Catalog with stored price overrides applied, converted into `currency`
+   * when a rate table is given. Items keep their original price for reference.
+   */
+  catalogWithPrices(currency?: string, rates?: RateTable): { goals: PricedItem<CatalogItem>[]; habits: PricedItem<HabitItem>[]; currency: string } {
     const overrides = new Map(this.listPrices().map((p) => [p.key, p]));
-    const apply = <T extends { id: string; price: number; currency: string }>(prefix: string, item: T) => {
+    const target = (currency ?? 'USD').toUpperCase();
+    const apply = <T extends { id: string; price: number; currency: string }>(prefix: string, item: T): PricedItem<T> => {
       const o = overrides.get(`${prefix}:${item.id}`);
-      return o
-        ? { ...item, price: o.price, currency: o.currency, source: o.source, fetchedAt: o.fetchedAt }
-        : { ...item, source: 'catalog', fetchedAt: null };
+      const base = o ? { ...item, price: o.price, currency: o.currency, source: o.source, fetchedAt: o.fetchedAt } : { ...item, source: 'catalog', fetchedAt: null };
+      if (base.currency.toUpperCase() === target || !rates || !canConvert(base.currency, target, rates)) {
+        return { ...base, originalPrice: base.price, originalCurrency: base.currency };
+      }
+      return { ...base, price: convertPrice(base.price, base.currency, target, rates), currency: target, originalPrice: base.price, originalCurrency: base.currency };
     };
     return {
       goals: GOAL_CATALOG.map((g) => apply('goal', g)),
       habits: HABIT_CATALOG.map((h) => apply('habit', h)),
+      currency: target,
     };
   }
 }

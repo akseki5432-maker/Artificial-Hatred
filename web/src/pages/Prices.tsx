@@ -3,7 +3,7 @@ import { Card, NumberField } from '../components/ui.tsx';
 import { api, ApiError } from '../lib/api.ts';
 import { useProfile } from '../lib/profile.tsx';
 import { useAsync } from '../lib/useAsync.ts';
-import type { Catalog, PriceSearchResult, ProviderStatus } from '../lib/types.ts';
+import type { Catalog, FxStatus, PriceSearchResult, ProviderStatus } from '../lib/types.ts';
 
 const PROVIDER_HELP: Record<string, string> = {
   serpapi: 'Google Shopping results through SerpApi. Set SERPAPI_KEY in .env.',
@@ -14,7 +14,8 @@ const PROVIDER_HELP: Record<string, string> = {
 export default function Prices() {
   const { profile, refresh, money } = useProfile();
   const status = useAsync(() => api.prices.status(), []);
-  const catalog = useAsync<Catalog>(() => api.catalog(), []);
+  const fx = useAsync<FxStatus>(() => api.fx(), []);
+  const catalog = useAsync<Catalog>(() => api.catalog(profile?.currency), [profile?.currency]);
   const [query, setQuery] = useState('');
   const [applyTo, setApplyTo] = useState('');
   const [result, setResult] = useState<PriceSearchResult | null>(null);
@@ -32,8 +33,8 @@ export default function Prices() {
     const c = catalog.data;
     if (!c) return [];
     return [
-      ...c.goals.map((g) => ({ key: `goal:${g.id}`, emoji: g.emoji, name: g.name, price: g.price, currency: g.currency, source: g.source, fetchedAt: g.fetchedAt, query: g.searchQuery })),
-      ...c.habits.map((h) => ({ key: `habit:${h.id}`, emoji: h.emoji, name: h.name, price: h.price, currency: h.currency, source: h.source, fetchedAt: h.fetchedAt, query: h.searchQuery })),
+      ...c.goals.map((g) => ({ key: `goal:${g.id}`, emoji: g.emoji, name: g.name, price: g.price, currency: g.currency, originalPrice: g.originalPrice, originalCurrency: g.originalCurrency, source: g.source, fetchedAt: g.fetchedAt, query: g.searchQuery })),
+      ...c.habits.map((h) => ({ key: `habit:${h.id}`, emoji: h.emoji, name: h.name, price: h.price, currency: h.currency, originalPrice: h.originalPrice, originalCurrency: h.originalCurrency, source: h.source, fetchedAt: h.fetchedAt, query: h.searchQuery })),
     ];
   }, [catalog.data]);
 
@@ -131,10 +132,14 @@ export default function Prices() {
             {searchError && <div className="alert">{searchError}</div>}
             {result && (
               <div className="alert ok">
-                <strong>
-                  {money(result.summary.median)} {result.summary.currency !== currency ? `(${result.summary.currency})` : ''}
-                </strong>{' '}
-                is the middle price from {result.summary.count} result{result.summary.count === 1 ? '' : 's'} ({money(result.summary.low)} to {money(result.summary.high)}) via {result.provider}
+                <strong>{result.converted ? money(result.converted.price) : result.summary.currency === currency ? money(result.summary.median) : `${result.summary.median} ${result.summary.currency}`}</strong>{' '}
+                is the middle price from {result.summary.count} result{result.summary.count === 1 ? '' : 's'} (
+                {result.converted
+                  ? `${money(result.converted.low)} to ${money(result.converted.high)}, converted from ${result.summary.currency}`
+                  : result.summary.currency === currency
+                    ? `${money(result.summary.low)} to ${money(result.summary.high)}`
+                    : `${result.summary.low} to ${result.summary.high} ${result.summary.currency}`}
+                ) via {result.provider}
                 {result.fromCache ? ', from the cache' : ''}.{result.saved ? ` Saved as the price for ${result.saved.name}.` : ''}
                 {result.sources.length > 0 && (
                   <ul className="small" style={{ margin: '8px 0 0', paddingLeft: 18 }}>
@@ -147,7 +152,7 @@ export default function Prices() {
                         ) : (
                           s.title
                         )}
-                        {s.price !== undefined ? ` · ${money(s.price)}` : ''}
+                        {s.price !== undefined ? ` · ${s.price} ${s.currency ?? ''}` : ''}
                       </li>
                     ))}
                   </ul>
@@ -178,6 +183,12 @@ export default function Prices() {
             </button>
           </div>
           {refreshReport && <p className="small" style={{ marginTop: 8 }}>{refreshReport}</p>}
+          {fx.data && (
+            <p className="tiny" style={{ marginTop: 10 }}>
+              💱 Exchange rates: {fx.data.source === 'live' ? `live rates from ${fx.data.date}` : `built-in approximate table (${fx.data.date}); live rates were not reachable`}. Catalog prices are in USD and shown here in {currency}.
+              {catalog.data?.catalogReviewed ? ` Catalog last reviewed ${catalog.data.catalogReviewed}.` : ''}
+            </p>
+          )}
         </Card>
       </div>
 
@@ -212,7 +223,14 @@ export default function Prices() {
                         </button>
                       </span>
                     ) : (
-                      <strong>{money(r.price)}</strong>
+                      <>
+                        <strong>{money(r.price)}</strong>
+                        {r.originalCurrency !== r.currency && (
+                          <div className="tiny">
+                            {r.originalPrice} {r.originalCurrency}
+                          </div>
+                        )}
+                      </>
                     )}
                   </td>
                   <td>

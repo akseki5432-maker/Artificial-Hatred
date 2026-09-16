@@ -48,6 +48,28 @@ export default function Ledger() {
         <h1>Money log 📒</h1>
         <p>Write down what comes in and what goes out. Seeing it is half the battle.</p>
       </div>
+      <div className="row">
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || profile.allowanceAmount <= 0}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await api.ledger.addAllowance(profile.id);
+              await refresh();
+              await entries.reload();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          💵 I got my allowance ({money(profile.allowanceAmount)})
+        </button>
+        <a className="btn secondary" href={api.ledger.csvUrl(profile.id)} download>
+          ⬇️ Download as spreadsheet
+        </a>
+      </div>
       <div className="grid grid-3">
         <Stat label="Came in (30 days)" value={money(s.receivedThisMonth)} />
         <Stat label="Went out (30 days)" value={money(s.spentThisMonth)} />

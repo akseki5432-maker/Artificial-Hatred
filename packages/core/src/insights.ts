@@ -24,6 +24,8 @@ export interface InsightContext {
   goal?: { name: string; price: number };
   /** A habit the kid logged, if any. */
   habit?: { name: string; price: number; timesPerWeek: number };
+  /** Price of one candy bar in the kid's currency, for the "how many candy bars" line. */
+  candyPrice?: number;
 }
 
 /** Plain-language observations that make the numbers land for a kid. */
@@ -55,13 +57,14 @@ export function buildInsights(ctx: InsightContext): Insight[] {
     tone: 'wow',
   });
 
-  const candy = HABIT_CATALOG.find((h) => h.id === 'candy');
-  if (candy) {
+  const candyPrice = ctx.candyPrice ?? HABIT_CATALOG.find((h) => h.id === 'candy')?.price ?? 1.75;
+  if (candyPrice > 0) {
+    const bars = equivalentUnits(income.perYear, candyPrice).toLocaleString();
     out.push({
       id: 'candy',
-      emoji: candy.emoji,
-      title: `${equivalentUnits(income.perYear, candy.price).toLocaleString()} candy bars`,
-      body: `Your yearly allowance is worth ${equivalentUnits(income.perYear, candy.price).toLocaleString()} candy bars. Or one really big thing. Your choice.`,
+      emoji: '🍫',
+      title: `${bars} candy bars`,
+      body: `Your yearly allowance is worth ${bars} candy bars. Or one really big thing. Your choice.`,
       tone: 'wow',
     });
   }

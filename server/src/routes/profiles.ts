@@ -4,6 +4,7 @@ import { CADENCES, HABIT_CATALOG } from '@pocketpilot/core';
 import { HttpError, idParam } from '../app.js';
 import { buildPlan } from '../plan.js';
 import type { Repo } from '../repo.js';
+import type { FxService } from '../services/fx.js';
 
 const cadence = z.enum(CADENCES as [string, ...string[]]);
 const split = z.object({
@@ -31,7 +32,7 @@ const incomeInput = z.object({
   cadence,
 });
 
-export function profilesRouter(repo: Repo) {
+export function profilesRouter(repo: Repo, fx: FxService) {
   const r = Router();
 
   r.get('/', (_req, res) => {
@@ -61,12 +62,13 @@ export function profilesRouter(repo: Repo) {
     res.status(204).end();
   });
 
-  r.get('/:id/plan', (req, res) => {
+  r.get('/:id/plan', async (req, res) => {
     const p = repo.getProfile(idParam(req));
     if (!p) throw new HttpError(404, 'Profile not found');
-    const catalog = repo.catalogWithPrices();
+    const rates = await fx.getTable();
+    const catalog = repo.catalogWithPrices(p.currency, rates);
     const habits = catalog.habits.length > 0 ? catalog.habits : HABIT_CATALOG;
-    res.json(buildPlan(p, repo.listIncome(p.id), repo.listGoals(p.id), repo.listLedger(p.id), habits));
+    res.json(buildPlan(p, repo.listIncome(p.id), repo.listGoals(p.id), repo.listLedger(p.id), habits, rates));
   });
 
   r.get('/:id/income', (req, res) => {

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { CATEGORY_LABELS, EARN_IDEAS, GOAL_CATALOG, HABIT_CATALOG, earnIdeasForAge, findCatalogItem, findHabit } from '@pocketpilot/core';
+import { CATALOG_LAST_REVIEWED, CATEGORY_LABELS, EARN_IDEAS, GOAL_CATALOG, HABIT_CATALOG, earnIdeasForAge, findCatalogItem, findHabit } from '@pocketpilot/core';
 import { HttpError } from '../app.js';
 import type { Repo } from '../repo.js';
 import type { PriceSearchService } from '../services/priceSearch/index.js';
+import type { FxService } from '../services/fx.js';
 
 const KEY = /^(goal|habit|custom):[a-z0-9-]{1,60}$/;
 
@@ -24,11 +25,14 @@ const priceInput = z.object({
   note: z.string().trim().max(200).nullable().optional(),
 });
 
-export function catalogRouter(repo: Repo, priceSearch: PriceSearchService) {
+export function catalogRouter(repo: Repo, priceSearch: PriceSearchService, fx: FxService) {
   const r = Router();
+  let refreshing = false;
 
-  r.get('/catalog', (_req, res) => {
-    res.json({ ...repo.catalogWithPrices(), categories: CATEGORY_LABELS });
+  r.get('/catalog', async (req, res) => {
+    const currency = typeof req.query.currency === 'string' && req.query.currency.length === 3 ? req.query.currency.toUpperCase() : undefined;
+    const rates = currency ? await fx.getTable() : undefined;
+    res.json({ ...repo.catalogWithPrices(currency, rates), categories: CATEGORY_LABELS, catalogReviewed: CATALOG_LAST_REVIEWED });
   });
 
   r.get('/earn', (req, res) => {
@@ -79,6 +83,20 @@ export function catalogRouter(repo: Repo, priceSearch: PriceSearchService) {
   r.post('/prices/search', async (req, res) => {
     const input = searchInput.parse(req.body);
     const result = await priceSearch.search(input.query, { currency: input.currency, country: input.country }, { skipCache: input.fresh ?? false });
+    // If the web answered in another currency, also say what that is in the one asked for.
+    let converted: { price: number; currency: string; low: number; high: number } | null = null;
+    if (input.currency && result.summary.currency !== input.currency) {
+      try {
+        converted = {
+          currency: input.currency,
+          price: await fx.convert(result.summary.median, result.summary.currency, input.currency),
+          low: await fx.convert(result.summary.low, result.summary.currency, input.currency),
+          high: await fx.convert(result.summary.high, result.summary.currency, input.currency),
+        };
+      } catch {
+        converted = null;
+      }
+    }
     let saved = null;
     if (input.applyToKey) {
       const base = baseItem(input.applyToKey);
@@ -92,7 +110,7 @@ export function catalogRouter(repo: Repo, priceSearch: PriceSearchService) {
         note: `Found ${result.summary.count} prices from ${result.summary.low} to ${result.summary.high}`,
       });
     }
-    res.json({ ...result, saved });
+    res.json({ ...result, converted, saved });
   });
 
   /** Refresh every catalog item that has a search query. Runs sequentially to be polite to providers. */
@@ -100,12 +118,15 @@ export function catalogRouter(repo: Repo, priceSearch: PriceSearchService) {
     const currency = typeof req.body?.currency === 'string' ? req.body.currency.toUpperCase() : undefined;
     const country = typeof req.body?.country === 'string' ? req.body.country.toLowerCase() : undefined;
     if (!priceSearch.hasAnyProvider) throw new HttpError(503, 'No online price provider is configured.');
+    if (refreshing) throw new HttpError(409, 'A refresh is already running. Give it a minute.');
+    refreshing = true;
     const items: { key: string; name: string; query: string; currency: string }[] = [
       ...GOAL_CATALOG.filter((g) => g.searchQuery).map((g) => ({ key: `goal:${g.id}`, name: g.name, query: g.searchQuery as string, currency: g.currency })),
       ...HABIT_CATALOG.filter((h) => h.searchQuery).map((h) => ({ key: `habit:${h.id}`, name: h.name, query: h.searchQuery as string, currency: h.currency })),
     ];
     const updated: { key: string; price: number; currency: string; provider: string }[] = [];
     const failed: { key: string; error: string }[] = [];
+    try {
     for (const item of items) {
       try {
         const result = await priceSearch.search(item.query, { currency: currency ?? item.currency, country });
@@ -122,6 +143,9 @@ export function catalogRouter(repo: Repo, priceSearch: PriceSearchService) {
       } catch (err) {
         failed.push({ key: item.key, error: err instanceof Error ? err.message : String(err) });
       }
+    }
+    } finally {
+      refreshing = false;
     }
     res.json({ updated, failed });
   });
