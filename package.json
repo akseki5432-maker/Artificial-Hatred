@@ -13,12 +13,15 @@
     "build": "npm run build -w packages/core && npm run build -w web && npm run build -w server",
     "start": "npm run start -w server",
     "test": "npm run test -w packages/core && npm run test -w server",
-    "typecheck": "npm run typecheck -w packages/core && npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w packages/core && npm run typecheck -w server && npm run typecheck -w web",
+    "e2e": "playwright test",
+    "e2e:local": "PW_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome playwright test"
   },
   "engines": {
     "node": ">=22.13"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^10.0.5",
     "typescript": "~5.9.3",
     "vitest": "^4.0.0"

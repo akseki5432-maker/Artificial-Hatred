@@ -5,6 +5,7 @@ import Earn from './pages/Earn.tsx';
 import Goals from './pages/Goals.tsx';
 import Grow from './pages/Grow.tsx';
 import Habits from './pages/Habits.tsx';
+import Learn from './pages/Learn.tsx';
 import Ledger from './pages/Ledger.tsx';
 import Prices from './pages/Prices.tsx';
 import Start from './pages/Start.tsx';
@@ -16,6 +17,7 @@ const NAV = [
   { to: '/habits', label: '🧋 Daily stuff' },
   { to: '/earn', label: '💪 Earn more' },
   { to: '/ledger', label: '📒 Log' },
+  { to: '/learn', label: '📚 Learn' },
   { to: '/prices', label: '🏷️ Prices' },
 ];
 
@@ -63,6 +65,7 @@ function Shell() {
           <Route path="/habits" element={<Guard loading={loading} ok={profile !== null} element={<Habits />} />} />
           <Route path="/earn" element={<Guard loading={loading} ok={profile !== null} element={<Earn />} />} />
           <Route path="/ledger" element={<Guard loading={loading} ok={profile !== null} element={<Ledger />} />} />
+          <Route path="/learn" element={<Learn />} />
           <Route path="/prices" element={<Prices />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

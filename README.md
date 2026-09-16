@@ -7,7 +7,8 @@ An allowance coach for kids. Type in what you get each day, week, or month and P
 - **How to grow it** - a compound-growth simulator (piggy bank vs. savings vs. investing), the rule of 72, and the "family bank" idea.
 - **What the daily stuff costs** - the snack / boba / in-app-purchase habit calculator: what it costs in a year and what that money would become if saved instead.
 - **How to earn more** - age-appropriate ways to make money beyond an allowance, and a way to add them to your income.
-- **A money log** - track what comes in and goes out and see where it goes.
+- **A money log** - track what comes in and goes out, see where it goes, keep a weekly saving streak, and export to CSV. Moving money to the Save jar counts as a transfer, not a spend, so the balance stays honest.
+- **Lessons** - six short money lessons, each with a three-question quiz and something to try this week.
 - **Live prices** - search the web for today's price of anything, save it to the catalog, edit prices by hand, and keep a price history.
 - **Any currency** - kids who use euros, pounds, rupees or yen see the catalog and web prices converted with live exchange rates (static fallback table when offline).
 - **Deadlines** - "I want it by June" shows the weekly saving needed and whether the current plan is on track.
@@ -64,11 +65,14 @@ packages/core   Pure TypeScript money engine (no dependencies). Used by both ser
                 catalog.ts      goal + habit catalog with typical prices and search queries
                 earn.ts         earning ideas by age
                 insights.ts     plain-language observations for the dashboard
+                lessons.ts      six kid-sized money lessons with quizzes
+                fx.ts           currency conversion and the fallback rate table
 server          Express 5 + node:sqlite API
                 routes/         profiles, goals, ledger, catalog + prices
                 services/priceSearch/  provider chain (serpapi, brave, duckduckgo) with SQLite cache
                 plan.ts         everything the dashboard needs, computed in one place
 web             React 19 + Vite + React Router. Kid-friendly UI, light/dark, phone-friendly.
+e2e             Playwright smoke tests against the built app, including a phone-width overflow check.
 ```
 
 ## API
@@ -108,6 +112,7 @@ docker run -p 3001:3001 -v pocketpilot-data:/data --env-file .env pocketpilot
 npm test            # unit + API tests (vitest)
 npm run typecheck   # all three packages
 npm run build
+npm run e2e         # Playwright smoke tests (run npm run build first)
 ```
 
 ## Notes on the numbers
@@ -115,3 +120,5 @@ npm run build
 - A year is 52 weeks, 12 months, 365 days. Daily allowances are multiplied by 365, weekly by 52, monthly by 12.
 - Growth compounds monthly. The default 7% is a long-run stock market average, not a promise. The app says so.
 - Catalog prices are typical US list prices as of the date in `CATALOG_LAST_REVIEWED`, meant to be refreshed from the web or edited.
+- Goal progress ("I saved some") is tracked per goal and is separate from the money log, so a kid can track a goal without logging every transaction.
+- The money log treats a `saving` entry as moving money between jars. It lowers neither the balance nor the "spent" total.

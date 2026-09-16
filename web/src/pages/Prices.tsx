@@ -194,7 +194,7 @@ export default function Prices() {
 
       <Card title="All prices" emoji="📋">
         {catalog.error && <div className="alert">{catalog.error}</div>}
-        <div style={{ overflowX: 'auto' }}>
+        <div className="scroll-x">
           <table>
             <thead>
               <tr>
@@ -269,9 +269,10 @@ export default function Prices() {
             {history.rows.length === 0 ? (
               <p className="muted small">No changes recorded yet. The built-in price is being used.</p>
             ) : (
-              <table>
-                <tbody>
-                  {history.rows.map((h, i) => (
+              <div className="scroll-x">
+                <table>
+                  <tbody>
+                    {history.rows.map((h, i) => (
                     <tr key={i}>
                       <td className="small muted">{h.at}</td>
                       <td>{h.source}</td>
@@ -279,7 +280,8 @@ export default function Prices() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </div>
         )}

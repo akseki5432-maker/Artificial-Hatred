@@ -280,7 +280,7 @@ export class Repo {
 
   addLedger(profileId: number, e: { kind: 'in' | 'out'; amount: number; category: string; note?: string | null; at?: string }): LedgerEntry {
     const res = this.db
-      .prepare("INSERT INTO ledger (profile_id, kind, amount, category, note, at) VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))")
+      .prepare("INSERT INTO ledger (profile_id, kind, amount, category, note, at) VALUES (?, ?, ?, ?, ?, COALESCE(datetime(?), datetime('now')))")
       .run(profileId, e.kind, e.amount, e.category, e.note ?? null, e.at ?? null);
     const row = this.db.prepare('SELECT * FROM ledger WHERE id = ?').get(Number(res.lastInsertRowid)) as Row;
     return rowToLedger(row);

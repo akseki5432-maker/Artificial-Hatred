@@ -5,3 +5,4 @@ export * from './catalog.js';
 export * from './earn.js';
 export * from './insights.js';
 export * from './fx.js';
+export * from './lessons.js';

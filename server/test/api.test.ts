@@ -188,6 +188,30 @@ describe('API', () => {
     expect(cleared.json.targetDate).toBeNull();
   });
 
+  it('tracks balance and a saving streak', async () => {
+    const twoWeeksAgo = new Date(Date.now() - 14 * 86400_000).toISOString();
+    const lastWeek = new Date(Date.now() - 7 * 86400_000).toISOString();
+    expect((await api('POST', `/api/profiles/${profileId}/ledger`, { kind: 'out', amount: 2, category: 'saving', at: twoWeeksAgo })).status).toBe(201);
+    expect((await api('POST', `/api/profiles/${profileId}/ledger`, { kind: 'out', amount: 2, category: 'saving', at: lastWeek })).status).toBe(201);
+    expect((await api('POST', `/api/profiles/${profileId}/ledger`, { kind: 'out', amount: 2, category: 'saving' })).status).toBe(201);
+    const plan = await api('GET', `/api/profiles/${profileId}/plan`);
+    expect(plan.json.ledgerSummary.savingStreakWeeks).toBe(3);
+    expect(plan.json.ledgerSummary.totalIn).toBe(10);
+    expect(plan.json.ledgerSummary.totalOut).toBe(3.5 + 6);
+    // Saving is a transfer: it sits in the jar rather than counting as spending.
+    expect(plan.json.ledgerSummary.inSaveJar).toBe(6);
+    expect(plan.json.ledgerSummary.totalSpent).toBe(3.5);
+    expect(plan.json.ledgerSummary.balanceNow).toBeCloseTo(10 - 3.5, 6);
+    expect(plan.json.ledgerSummary.spentThisMonth).toBe(3.5);
+    expect(plan.json.ledgerSummary.savedThisMonth).toBe(6);
+    expect(plan.json.ledgerSummary.byCategory.saving).toBeUndefined();
+    expect(plan.json.ledgerSummary.byCategory.snacks).toBe(3.5);
+    // Older entries are normalized to sqlite's date format, so ordering by date works across sources.
+    const list = await api('GET', `/api/profiles/${profileId}/ledger`);
+    expect(list.json.every((e: { at: string }) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(e.at))).toBe(true);
+    expect(list.json[list.json.length - 1].amount).toBe(2);
+  });
+
   it('logs allowance day and exports csv', async () => {
     const quick = await api('POST', `/api/profiles/${profileId}/ledger/allowance`);
     expect(quick.status).toBe(201);

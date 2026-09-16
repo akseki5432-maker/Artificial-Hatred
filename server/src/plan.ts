@@ -14,6 +14,9 @@ import {
 } from '@pocketpilot/core';
 import type { Goal, IncomeSource, LedgerEntry, Profile } from './repo.js';
 
+/** Out-categories that really are money leaving. "saving" is a transfer, not a spend. */
+export const SPENDING_CATEGORIES = ['snacks', 'games', 'toys', 'clothes', 'fun', 'sharing', 'other'] as const;
+
 export interface DeadlinePlan {
   targetDate: string;
   weeksLeft: number;
@@ -70,11 +73,21 @@ export function buildPlan(
   });
   const untilAdultNoGrowth = compoundGrowth({ monthlyContribution: normalized.perMonth * rate, annualRatePct: 0, years: yearsTo18, startingBalance: profile.startingBalance });
 
-  const spentThisMonth = sumSince(ledger, 'out', 30);
+  // Moving money into the Save jar is a transfer, not a purchase: the money is
+  // still the kid's, so it does not count as "spent" and does not lower the balance.
+  const spentThisMonth = sumSince(ledger, 'out', 30, SPENDING_CATEGORIES);
+  const savedThisMonth = sumSince(ledger, 'out', 30, ['saving']);
   const receivedThisMonth = sumSince(ledger, 'in', 30);
+  const totalIn = ledger.filter((e) => e.kind === 'in').reduce((s, e) => s + e.amount, 0);
+  const totalOut = ledger.filter((e) => e.kind === 'out').reduce((s, e) => s + e.amount, 0);
+  const inSaveJar = ledger.filter((e) => e.kind === 'out' && e.category === 'saving').reduce((s, e) => s + e.amount, 0);
+  const totalSpent = totalOut - inSaveJar;
+  /** Money the kid still has: what they started with, plus everything in, minus what was actually spent or given away. */
+  const balanceNow = profile.startingBalance + totalIn - totalSpent;
+  const savingStreakWeeks = savingStreak(ledger);
   const byCategory: Record<string, number> = {};
   for (const e of ledger) {
-    if (e.kind !== 'out') continue;
+    if (e.kind !== 'out' || e.category === 'saving') continue;
     byCategory[e.category] = (byCategory[e.category] ?? 0) + e.amount;
   }
 
@@ -102,7 +115,19 @@ export function buildPlan(
     /** A whole year of income expressed in weeks, handy for the wishlist. */
     weeksPerYear: WEEKS_PER_YEAR,
     habits: habitPreview,
-    ledgerSummary: { spentThisMonth, receivedThisMonth, byCategory, entries: ledger.length },
+    ledgerSummary: {
+      spentThisMonth,
+      savedThisMonth,
+      receivedThisMonth,
+      byCategory,
+      entries: ledger.length,
+      totalIn,
+      totalOut,
+      totalSpent,
+      inSaveJar,
+      balanceNow,
+      savingStreakWeeks,
+    },
     insights: buildInsights({
       name: profile.name,
       ...(profile.age !== null ? { age: profile.age } : {}),
@@ -118,7 +143,31 @@ export function buildPlan(
   };
 }
 
-function sumSince(ledger: LedgerEntry[], kind: 'in' | 'out', days: number): number {
+/** SQLite stores "YYYY-MM-DD HH:MM:SS" in UTC; user-supplied ISO strings are normalized the same way on insert. */
+export function ledgerTime(at: string): number {
+  const t = Date.parse(at.includes('T') ? at : `${at.replace(' ', 'T')}Z`);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function sumSince(ledger: LedgerEntry[], kind: 'in' | 'out', days: number, categories?: readonly string[]): number {
   const cutoff = Date.now() - days * 86400 * 1000;
-  return ledger.filter((e) => e.kind === kind && Date.parse(e.at.replace(' ', 'T') + (e.at.endsWith('Z') ? '' : 'Z')) >= cutoff).reduce((s, e) => s + e.amount, 0);
+  return ledger
+    .filter((e) => e.kind === kind && ledgerTime(e.at) >= cutoff && (!categories || categories.includes(e.category)))
+    .reduce((s, e) => s + e.amount, 0);
+}
+
+/**
+ * Consecutive weeks, counting back from this week, with at least one entry in
+ * the "saving" category. The current week counts even if it just started.
+ */
+export function savingStreak(ledger: LedgerEntry[], now = Date.now()): number {
+  const WEEK = 7 * 86400_000;
+  const weeks = new Set<number>();
+  for (const e of ledger) {
+    if (e.kind !== 'out' || e.category !== 'saving') continue;
+    weeks.add(Math.floor((now - ledgerTime(e.at)) / WEEK));
+  }
+  let streak = 0;
+  while (weeks.has(streak)) streak++;
+  return streak;
 }

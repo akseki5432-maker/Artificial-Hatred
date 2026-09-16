@@ -92,26 +92,30 @@ export default function Grow() {
       <Insights items={tips} />
 
       <Card title={`${money(monthly)} a month for ${years} years at different rates`} emoji="🔢">
-        <table>
-          <thead>
-            <tr>
-              <th>Growth rate</th>
-              <th className="num">You put in</th>
-              <th className="num">Money earned</th>
-              <th className="num">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {compare.map((c) => (
-              <tr key={c.r} style={{ fontWeight: c.r === rate ? 800 : 400 }}>
-                <td>{c.r}%{c.r === 0 ? ' (piggy bank)' : c.r === 7 ? ' (stock market average)' : ''}</td>
-                <td className="num">{money(c.totalContributed + profile.startingBalance)}</td>
-                <td className="num">{money(c.totalGrowth)}</td>
-                <td className="num">{money(c.finalBalance)}</td>
+        <div className="scroll-x">
+          <table>
+            <thead>
+              <tr>
+                <th>Growth rate</th>
+                <th className="num">You put in</th>
+                <th className="num">Money earned</th>
+                <th className="num">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {compare.map((c) => (
+                <tr key={c.r} style={{ fontWeight: c.r === rate ? 800 : 400 }}>
+                  <td>
+                    {c.r}%{c.r === 0 ? ' (piggy bank)' : c.r === 7 ? ' (stock market average)' : ''}
+                  </td>
+                  <td className="num">{money(c.totalContributed + profile.startingBalance)}</td>
+                  <td className="num">{money(c.totalGrowth)}</td>
+                  <td className="num">{money(c.finalBalance)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p className="tiny" style={{ marginTop: 8 }}>
           These are estimates. Real investments go up and down, and past averages don't promise the future. Kids need a grown-up to open a savings or custodial investment account.
         </p>

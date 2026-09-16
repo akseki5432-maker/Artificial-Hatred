@@ -70,10 +70,11 @@ export default function Ledger() {
           ⬇️ Download as spreadsheet
         </a>
       </div>
-      <div className="grid grid-3">
+      <div className="grid grid-4">
+        <Stat label="Money you have now" value={money(s.balanceNow)} delta={s.inSaveJar > 0 ? `${money(s.inSaveJar)} of it is in your Save jar` : `${money(profile.startingBalance)} to start, plus in, minus spent`} />
         <Stat label="Came in (30 days)" value={money(s.receivedThisMonth)} />
-        <Stat label="Went out (30 days)" value={money(s.spentThisMonth)} />
-        <Stat label="Kept" value={money(s.receivedThisMonth - s.spentThisMonth)} delta={s.receivedThisMonth > 0 ? `${Math.round(((s.receivedThisMonth - s.spentThisMonth) / s.receivedThisMonth) * 100)}% of what came in` : undefined} />
+        <Stat label="Spent (30 days)" value={money(s.spentThisMonth)} delta={s.receivedThisMonth > 0 ? `kept ${Math.max(0, Math.round(((s.receivedThisMonth - s.spentThisMonth) / s.receivedThisMonth) * 100))}% of what came in` : undefined} />
+        <Stat label="Saving streak" value={`${s.savingStreakWeeks} week${s.savingStreakWeeks === 1 ? '' : 's'} ${s.savingStreakWeeks > 0 ? '🔥' : ''}`} delta='log a "saving" entry each week to keep it going' />
       </div>
       <div className="grid grid-2">
         <Card title="Add something" emoji="✏️">
@@ -111,7 +112,16 @@ export default function Ledger() {
         </Card>
         <div className="stack">
           <Card title="Where it goes" emoji="📊">
-            {cats.length === 0 ? <p className="muted">Nothing logged yet. Add a few things and a picture appears here.</p> : <BarRows rows={cats} format={(v) => money(v)} color="var(--series-2)" />}
+            {cats.length === 0 ? (
+              <p className="muted">Nothing spent yet. Log a few purchases and a picture appears here.</p>
+            ) : (
+              <BarRows rows={cats} format={(v) => money(v)} color="var(--series-2)" />
+            )}
+            {s.inSaveJar > 0 && (
+              <p className="tiny" style={{ marginTop: 8 }}>
+                🫙 {money(s.inSaveJar)} moved into the Save jar is not shown here. That money is still yours, it just changed pockets.
+              </p>
+            )}
           </Card>
           {snacks > 0 && (
             <div className="insight wow">
@@ -131,10 +141,11 @@ export default function Ledger() {
         {(entries.data ?? []).length === 0 ? (
           <p className="muted">No entries yet.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
+          <div className="scroll-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
                 <th>What</th>
                 <th className="num">Amount</th>
                 <th></th>
@@ -161,6 +172,7 @@ export default function Ledger() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
     </div>

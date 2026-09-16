@@ -5,7 +5,7 @@ import { api } from '../lib/api.ts';
 import { useProfile } from '../lib/profile.tsx';
 import { CadencePicker, Card, NumberField } from '../components/ui.tsx';
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'INR', 'JPY', 'MXN', 'BRL', 'ZAR', 'SGD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'TRY'];
+export const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'INR', 'JPY', 'MXN', 'BRL', 'ZAR', 'SGD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'TRY'];
 
 export default function Start() {
   const navigate = useNavigate();

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { equivalentUnits, normalizeSplit, type Cadence, type SplitPercentages } from '@pocketpilot/core';
 import LineChart from '../components/LineChart.tsx';
 import { CADENCE_SHORT, CadencePicker, Card, Hero, Insights, NumberField, Slider, Stat } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { useProfile } from '../lib/profile.tsx';
-import { currencySymbol } from './Start.tsx';
+import { CURRENCIES, currencySymbol } from './Start.tsx';
 
 const JARS: { key: keyof SplitPercentages; emoji: string; label: string; blurb: string }[] = [
   { key: 'save', emoji: '🫙', label: 'Save', blurb: 'For goals you are working toward' },
@@ -80,9 +80,17 @@ export default function Dashboard() {
       />
 
       <div className="grid grid-4">
-        <Stat label="Every day" value={money(n.perDay)} />
-        <Stat label="Every week" value={money(n.perWeek)} />
+        <Stat label="Every week" value={money(n.perWeek)} delta={`${money(n.perDay)} a day`} />
         <Stat label="Every month" value={money(n.perMonth)} />
+        <Stat
+          label="Money you have now"
+          value={money(plan.ledgerSummary.balanceNow)}
+          delta={
+            plan.ledgerSummary.entries > 0
+              ? `${plan.ledgerSummary.inSaveJar > 0 ? `${money(plan.ledgerSummary.inSaveJar)} in the Save jar · ` : ''}${plan.ledgerSummary.savingStreakWeeks > 0 ? `${plan.ledgerSummary.savingStreakWeeks}-week saving streak 🔥` : 'log a "saving" entry to start a streak'}`
+              : 'keep the Log to track it'
+          }
+        />
         <Stat label={profile.age !== null && profile.age < 18 ? 'By age 18' : 'In 10 years'} value={money(plan.untilAdult.withGrowth.finalBalance, { compact: true })} delta={`saving ${Math.round(profile.savingsRate * 100)}% at ${profile.growthRatePct}% growth`} />
       </div>
 
@@ -169,6 +177,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      <Settings />
+
       <Card title="Your next 12 months" emoji="📈" right={<span className="pill accent">saving {Math.round(profile.savingsRate * 100)}%</span>}>
         <LineChart
           labels={plan.balanceOneYear.map((p) => p.month)}
@@ -184,6 +194,90 @@ export default function Dashboard() {
         </p>
       </Card>
     </div>
+  );
+}
+
+function Settings() {
+  const { profile, profiles, refresh, selectProfile, money } = useProfile();
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ name: profile?.name ?? '', age: profile?.age ?? 10, currency: profile?.currency ?? 'USD', startingBalance: profile?.startingBalance ?? 0 });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (profile) setForm({ name: profile.name, age: profile.age ?? 10, currency: profile.currency, startingBalance: profile.startingBalance });
+  }, [profile]);
+  if (!profile) return null;
+  const changed = form.name !== profile.name || form.age !== (profile.age ?? 10) || form.currency !== profile.currency || form.startingBalance !== profile.startingBalance;
+  return (
+    <details className="card soft">
+      <summary style={{ cursor: 'pointer', fontWeight: 800 }}>⚙️ Settings for {profile.name} (grown-ups)</summary>
+      <div className="grid grid-4" style={{ marginTop: 12 }}>
+        <label className="field">
+          Name
+          <input type="text" value={form.name} maxLength={60} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        </label>
+        <NumberField label="Age" value={form.age} onChange={(v) => setForm({ ...form, age: v })} min={3} max={25} />
+        <label className="field">
+          Money type
+          <select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c} {currencySymbol(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <NumberField label="Money already saved" value={form.startingBalance} onChange={(v) => setForm({ ...form, startingBalance: v })} step={1} prefix={currencySymbol(form.currency)} />
+      </div>
+      {form.currency !== profile.currency && (
+        <p className="small muted" style={{ marginTop: 8 }}>
+          Changing the money type does not convert the allowance amount ({money(profile.allowanceAmount)}) or saved goals. Update those after switching.
+        </p>
+      )}
+      <div className="row" style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          className="btn"
+          disabled={!changed || busy || !form.name.trim()}
+          onClick={async () => {
+            setBusy(true);
+            setMsg(null);
+            try {
+              await api.profiles.update(profile.id, { name: form.name.trim(), age: form.age, currency: form.currency, startingBalance: form.startingBalance });
+              await refresh();
+              setMsg('Saved.');
+            } catch (err) {
+              setMsg(err instanceof Error ? err.message : String(err));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Save settings
+        </button>
+        <button
+          type="button"
+          className="btn danger"
+          disabled={busy}
+          onClick={async () => {
+            if (!confirm(`Delete ${profile.name} and everything logged for them? This cannot be undone.`)) return;
+            setBusy(true);
+            try {
+              await api.profiles.remove(profile.id);
+              const next = profiles.find((p) => p.id !== profile.id);
+              selectProfile(next?.id ?? null);
+              await refresh();
+              if (!next) navigate('/start');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Delete this kid
+        </button>
+        {msg && <span className="small muted">{msg}</span>}
+      </div>
+    </details>
   );
 }
 

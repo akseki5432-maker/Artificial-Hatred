@@ -516,6 +516,14 @@ input[type='range'] {
   font-size: 0.9rem;
 }
 
+/* Wrap any table that can get wide; it scrolls inside its card instead of
+   pushing the whole page sideways on a phone. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -700,6 +708,13 @@ th.num {
 @media (max-width: 640px) {
   body {
     font-size: 16px;
+  }
+  th,
+  td {
+    padding: 8px 6px;
+  }
+  table {
+    font-size: 0.9rem;
   }
   .nav {
     margin-left: 0;

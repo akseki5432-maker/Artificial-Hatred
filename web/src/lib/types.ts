@@ -109,7 +109,19 @@ export interface Plan {
   untilAdult: { years: number; withGrowth: CompoundGrowthResult; noGrowth: CompoundGrowthResult };
   goals: (Goal & { plans: GoalPlan[]; progress: number; deadline: DeadlinePlan | null; convertedFrom: { price: number; currency: string } | null })[];
   habits: (PricedHabit & { oneYear: SkipHabitResult; fiveYears: SkipHabitResult })[];
-  ledgerSummary: { spentThisMonth: number; receivedThisMonth: number; byCategory: Record<string, number>; entries: number };
+  ledgerSummary: {
+    spentThisMonth: number;
+    savedThisMonth: number;
+    receivedThisMonth: number;
+    byCategory: Record<string, number>;
+    entries: number;
+    totalIn: number;
+    totalOut: number;
+    totalSpent: number;
+    inSaveJar: number;
+    balanceNow: number;
+    savingStreakWeeks: number;
+  };
   insights: Insight[];
 }
 

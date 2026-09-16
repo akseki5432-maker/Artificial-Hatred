@@ -27,6 +27,7 @@ export default function Goals() {
   const weekly = plan.normalized.perWeek;
   const yearly = plan.normalized.perYear;
   const sym = currencySymbol(profile.currency);
+  const costliestHabit = [...plan.habits].sort((a, b) => b.oneYear.weeklyCost - a.oneYear.weeklyCost)[0];
   const showOriginal = (item: { originalPrice: number; originalCurrency: string; currency: string }) => item.originalCurrency !== item.currency;
 
   const wishRows = Object.entries(wish)
@@ -140,24 +141,26 @@ export default function Goals() {
                   {remaining === 0 ? (
                     <div className="alert ok">You can get this right now. 🎉</div>
                   ) : (
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>If you save…</th>
-                          <th className="num">a week</th>
-                          <th>you get it in</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.plans.map((p) => (
-                          <tr key={p.savingsRate} style={{ fontWeight: Math.abs(p.savingsRate - profile.savingsRate) < 0.01 ? 800 : 400 }}>
-                            <td>{Math.round(p.savingsRate * 100)}% of your money</td>
-                            <td className="num">{money(p.weeklySaving)}</td>
-                            <td>{describeWeeks(p.timing.weeks)}</td>
+                    <div className="scroll-x">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>If you save…</th>
+                            <th className="num">a week</th>
+                            <th>you get it in</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {g.plans.map((p) => (
+                            <tr key={p.savingsRate} style={{ fontWeight: Math.abs(p.savingsRate - profile.savingsRate) < 0.01 ? 800 : 400 }}>
+                              <td>{Math.round(p.savingsRate * 100)}% of your money</td>
+                              <td className="num">{money(p.weeklySaving)}</td>
+                              <td>{describeWeeks(p.timing.weeks)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                   {d && remaining > 0 && (
                     <div className={`alert ${d.onTrack ? 'ok' : d.shareOfIncome > 1 ? '' : 'info'}`}>
@@ -177,6 +180,12 @@ export default function Goals() {
                         </>
                       )}
                     </div>
+                  )}
+                  {remaining > 0 && costliestHabit && weekly * profile.savingsRate > 0 && (
+                    <p className="small" style={{ margin: 0 }}>
+                      {costliestHabit.emoji} Skip {costliestHabit.name.toLowerCase()} ({costliestHabit.timesPerWeek}x a week) and put that {money(costliestHabit.oneYear.weeklyCost)} toward this: you get it{' '}
+                      <strong>{describeWeeks(remaining / (weekly * profile.savingsRate) - remaining / (weekly * profile.savingsRate + costliestHabit.oneYear.weeklyCost))}</strong> sooner.
+                    </p>
                   )}
                   <p className="tiny">
                     Fun fact: {money(g.price)} saved and grown at {profile.growthRatePct}% for 10 years would be {money(later)}. Is this worth {money(later)} to you? Sometimes yes!
