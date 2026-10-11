@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Main Street Ledger</title>
+  <meta name="description" content="A free financial checkup for small local businesses: break-even, pricing, price-change impact, and a 13-week cash forecast. Runs in your browser; no data leaves the device.">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>Main Street Ledger</h1>
+      <p class="tagline">A free 30-minute financial checkup for small local businesses.</p>
+      <p class="privacy">Everything runs in this browser. Numbers are never uploaded anywhere.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" id="profile">
+      <div class="card-head">
+        <h2>1. Business profile</h2>
+        <div class="actions no-print">
+          <button type="button" id="load-sample" class="ghost">Load sample café</button>
+          <button type="button" id="clear" class="ghost">Clear</button>
+        </div>
+      </div>
+      <p class="hint">Use monthly averages. Rough numbers are fine; the owner usually knows these within 10%.</p>
+      <form id="profile-form" class="grid" autocomplete="off">
+        <label class="span-2">Business name
+          <input name="businessName" type="text" placeholder="e.g. Rosa's Tamales">
+        </label>
+        <label>Average price per sale ($)
+          <input name="avgPrice" type="number" min="0" step="0.01" inputmode="decimal">
+          <small>Average ticket: total sales ÷ number of sales</small>
+        </label>
+        <label>Cost per sale ($)
+          <input name="varCost" type="number" min="0" step="0.01" inputmode="decimal">
+          <small>Ingredients, packaging, card fees: costs that grow with each sale</small>
+        </label>
+        <label>Sales per month
+          <input name="salesPerMonth" type="number" min="0" step="1" inputmode="numeric">
+          <small>Number of transactions or customers</small>
+        </label>
+        <label>Fixed costs per month ($)
+          <input name="fixedMonthly" type="number" min="0" step="1" inputmode="decimal">
+          <small>Rent, utilities, insurance, salaried staff, loan payments</small>
+        </label>
+        <label>Owner's target pay per month ($)
+          <input name="ownerPay" type="number" min="0" step="1" inputmode="decimal">
+          <small>What the owner wants to take home</small>
+        </label>
+        <label>Cash on hand ($)
+          <input name="cashOnHand" type="number" min="0" step="1" inputmode="decimal">
+          <small>Business bank balance today</small>
+        </label>
+      </form>
+    </section>
+
+    <section class="card" id="snapshot">
+      <h2>2. Monthly snapshot</h2>
+      <div class="stats" id="stats"></div>
+      <div id="breakeven-bar" class="bar-wrap" aria-hidden="true"></div>
+    </section>
+
+    <section class="card" id="health">
+      <h2>3. Health check</h2>
+      <ul class="checks" id="checks"></ul>
+    </section>
+
+    <section class="card" id="pricing">
+      <h2>4. What if we change prices?</h2>
+      <p class="hint">Raising prices means some customers may leave. This shows how many sales the business could lose (or must gain) and still earn the same as today.</p>
+      <div class="table-scroll">
+        <table id="price-table">
+          <thead><tr><th>Price change</th><th>New avg price</th><th>Sales needed / month</th><th>To earn the same as today</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sub">
+        <h3>Price for a target margin</h3>
+        <div class="grid compact">
+          <label>Item cost ($)<input id="pm-cost" type="number" min="0" step="0.01" value="3.20"></label>
+          <label>Target margin (%)<input id="pm-margin" type="number" min="0" max="99" step="1" value="65"></label>
+          <div class="result" id="pm-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="cash">
+      <h2>5. 13-week cash forecast</h2>
+      <p class="hint">Add big one-time expenses or inflows (equipment, tax payment, catering deposit). Use a negative amount for spending.</p>
+      <div class="grid compact no-print">
+        <label>Weekly sales growth (%)
+          <input id="growth" type="number" step="0.5" value="0">
+        </label>
+      </div>
+      <div id="events"></div>
+      <button type="button" id="add-event" class="ghost no-print">+ Add one-time item</button>
+      <div class="chart-wrap"><svg id="cash-chart" role="img" aria-label="Cash balance by week"></svg></div>
+      <p id="cash-summary" class="summary"></p>
+      <details class="table-details">
+        <summary>Week-by-week table</summary>
+        <div class="table-scroll">
+          <table id="cash-table">
+            <thead><tr><th>Week</th><th>Money in</th><th>Money out</th><th>One-time</th><th>Balance</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" id="notes">
+      <h2>6. Notes and next steps</h2>
+      <textarea id="consultant-notes" rows="4" placeholder="Agreed next steps, who does what, follow-up date…"></textarea>
+      <div class="actions no-print">
+        <button type="button" id="print" class="primary">Print / save one-page report</button>
+        <button type="button" id="export" class="ghost">Download data (JSON)</button>
+        <label class="ghost file-btn">Open saved data<input type="file" id="import" accept="application/json" hidden></label>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap site-footer">
+    <p>Main Street Ledger is a free, open-source student project. This is an educational estimate, not accounting or legal advice.</p>
+  </footer>
+
+  <script src="src/calc.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

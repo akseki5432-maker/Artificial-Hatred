@@ -1,1 +1,52 @@
-# Artificial-Hatred
+# Main Street Ledger
+
+**A free 30-minute financial checkup for small local businesses.**
+
+Most corner cafés, salons, and food trucks don't have a CFO. Many owners don't know their break-even point, whether they could raise prices, or whether their cash will last through a slow month. Main Street Ledger is a free tool that a student consultant can walk through with an owner. At the end, the owner keeps a one-page report.
+
+## What it does
+
+| Section | Question it answers |
+|---|---|
+| Monthly snapshot | Am I actually making money? How many sales a day do I need to break even? |
+| Health check | Traffic-light checks (margin, break-even cushion, owner pay, cash), each with a plain-language next step |
+| Price change table | If I raise prices 10%, how many customers can I lose and still earn the same? |
+| Price for a target margin | What should I charge for this item? (It also shows the difference between margin and markup.) |
+| 13-week cash forecast | Will cash dip below zero when the tax payment or equipment repair hits? |
+| One-page report | Print or save as PDF for the owner to keep |
+
+**Privacy:** Everything runs in the browser. There is no server, account, or tracking. Numbers are saved only on the device you're using, and you can export or import them as a file if you want.
+
+## Run it
+
+Open `index.html` in any browser. That's it, with no build step.
+
+### Put it online (free, with GitHub Pages)
+
+1. Push this repo to GitHub.
+2. In the repo, go to **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. The included workflow (`.github/workflows/pages.yml`) runs the tests and deploys on every push to `main`. Your link will look like `https://<username>.github.io/<repo>/`.
+
+## Run the tests
+
+```bash
+node --test tests/calc.test.js
+```
+
+All the math is in `src/calc.js` as pure functions, with no DOM access, so it can be tested in Node.
+
+## Project layout
+
+```
+index.html           the app
+src/calc.js          financial math (break-even, pricing, cash forecast, health checks)
+src/app.js           UI wiring and chart
+src/styles.css       styles, including dark mode and print layout
+tests/calc.test.js   unit tests
+docs/PLAYBOOK.md     how to run this as a real consulting program, plus Common App wording
+docs/impact-log.csv  template for tracking businesses served and outcomes
+```
+
+## Disclaimer
+
+Main Street Ledger is an educational tool. Its results are estimates, not accounting, tax, or legal advice.
