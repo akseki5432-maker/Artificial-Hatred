@@ -264,6 +264,178 @@
     return checks;
   }
 
+  /*
+   * Product lineup analysis (menu engineering). Each item: {name, price, cost, units}
+   * where units are sold per month. Items are sorted into four groups by
+   * popularity (70% rule) and dollar margin versus the weighted average.
+   */
+  function itemAnalysis(items, targetMargin) {
+    var target = targetMargin === undefined ? 0.6 : num(targetMargin);
+    var clean = (items || []).filter(function (it) {
+      return num(it.price) > 0 && num(it.units) >= 0;
+    });
+    var totalUnits = 0;
+    var totalContribution = 0;
+    var totalRevenue = 0;
+    var totalCost = 0;
+    clean.forEach(function (it) {
+      totalUnits += num(it.units);
+      totalContribution += (num(it.price) - num(it.cost)) * num(it.units);
+      totalRevenue += num(it.price) * num(it.units);
+      totalCost += num(it.cost) * num(it.units);
+    });
+    var n = clean.length;
+    var avgMargin = totalUnits > 0 ? totalContribution / totalUnits : 0;
+    var popularityCut = n > 0 ? 0.7 / n : 0;
+    var repricingGain = 0;
+
+    var rows = clean.map(function (it) {
+      var price = num(it.price);
+      var cost = num(it.cost);
+      var units = num(it.units);
+      var margin = price - cost;
+      var marginPct = margin / price;
+      var mix = totalUnits > 0 ? units / totalUnits : 0;
+      var popular = mix >= popularityCut;
+      var profitable = margin >= avgMargin;
+      var group;
+      if (margin <= 0) group = "loser";
+      else if (popular && profitable) group = "star";
+      else if (popular) group = "workhorse";
+      else if (profitable) group = "puzzle";
+      else group = "dog";
+
+      var targetPrice = priceForMargin(cost, target);
+      var gain = targetPrice !== null && targetPrice > price ? (targetPrice - price) * units : 0;
+      repricingGain += gain;
+
+      return {
+        name: it.name || "Item",
+        price: price,
+        cost: cost,
+        units: units,
+        margin: margin,
+        marginPct: marginPct,
+        contribution: margin * units,
+        contributionShare: totalContribution > 0 ? (margin * units) / totalContribution : 0,
+        mix: mix,
+        group: group,
+        targetPrice: gain > 0 ? targetPrice : null,
+        repricingGain: gain,
+      };
+    });
+
+    rows.sort(function (a, b) { return b.contribution - a.contribution; });
+
+    return {
+      rows: rows,
+      totalUnits: totalUnits,
+      totalRevenue: totalRevenue,
+      totalContribution: totalContribution,
+      avgPrice: totalUnits > 0 ? totalRevenue / totalUnits : 0,
+      avgCost: totalUnits > 0 ? totalCost / totalUnits : 0,
+      avgMargin: avgMargin,
+      target: target,
+      repricingGain: repricingGain,
+      losers: rows.filter(function (r) { return r.group === "loser"; }).length,
+    };
+  }
+
+  var ITEM_GROUPS = {
+    star: { label: "Star", advice: "Popular and profitable. Keep it, feature it, and don't discount it." },
+    workhorse: { label: "Workhorse", advice: "Sells a lot but earns less per sale. A small price increase or a cheaper ingredient adds up fast." },
+    puzzle: { label: "Puzzle", advice: "Earns well but doesn't sell much. Try better placement, a rename, or recommending it." },
+    dog: { label: "Dog", advice: "Low sales and low margin. Consider dropping it or reworking it." },
+    loser: { label: "Loses money", advice: "Costs more to make than it sells for. Fix the price or the recipe now." },
+  };
+
+  // Before/after comparison for a follow-up visit.
+  function compareVisits(before, after) {
+    var a = analyze(before);
+    var b = analyze(after);
+    var metrics = [
+      { key: "price", label: "Average price", fmt: "money2", higherIsBetter: true },
+      { key: "varCost", label: "Cost per sale", fmt: "money2", higherIsBetter: false },
+      { key: "sales", label: "Sales per month", fmt: "whole", higherIsBetter: true },
+      { key: "cmRatio", label: "Margin per sale (%)", fmt: "pct", higherIsBetter: true },
+      { key: "profit", label: "Monthly profit", fmt: "money", higherIsBetter: true },
+      { key: "breakEvenUnits", label: "Break-even sales", fmt: "whole", higherIsBetter: false },
+      { key: "cash", label: "Cash on hand", fmt: "money", higherIsBetter: true },
+    ];
+    return metrics.map(function (m) {
+      var x = a[m.key];
+      var y = b[m.key];
+      var delta = Number.isFinite(x) && Number.isFinite(y) ? y - x : null;
+      var direction = delta === null || Math.abs(delta) < 1e-9 ? "same" : (delta > 0) === m.higherIsBetter ? "better" : "worse";
+      return { key: m.key, label: m.label, fmt: m.fmt, before: x, after: y, delta: delta, direction: direction };
+    });
+  }
+
+  function median(values) {
+    var v = values.filter(Number.isFinite).sort(function (a, b) { return a - b; });
+    if (!v.length) return null;
+    var mid = Math.floor(v.length / 2);
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  }
+
+  /*
+   * Anonymized findings across many saved checkups (exported JSON sessions).
+   * Never returns business names.
+   */
+  function aggregate(sessions) {
+    var valid = (sessions || []).filter(function (s) {
+      return s && s.profile && num(s.profile.avgPrice) > 0 && num(s.profile.salesPerMonth) > 0;
+    });
+    var analyses = valid.map(function (s) { return analyze(s.profile); });
+    var count = valid.length;
+    var share = function (pred) {
+      return count ? analyses.filter(pred).length / count : null;
+    };
+
+    var byType = {};
+    valid.forEach(function (s) {
+      var t = s.profile.businessType || "Other";
+      byType[t] = (byType[t] || 0) + 1;
+    });
+
+    var itemsAnalyzed = 0;
+    var losingItems = 0;
+    var repricingGain = 0;
+    valid.forEach(function (s) {
+      if (s.items && s.items.length) {
+        var ia = itemAnalysis(s.items, s.targetMargin);
+        itemsAnalyzed += ia.rows.length;
+        losingItems += ia.losers;
+        repricingGain += ia.repricingGain;
+      }
+    });
+
+    var followUps = valid.filter(function (s) { return s.baseline && s.baseline.profile; });
+    var profitChanges = followUps.map(function (s) {
+      return analyze(s.profile).profit - analyze(s.baseline.profile).profit;
+    });
+
+    return {
+      count: count,
+      skipped: (sessions || []).length - count,
+      byType: byType,
+      medianCmRatio: median(analyses.map(function (a) { return a.cmRatio; })),
+      medianBreakEvenPerDay: median(analyses.map(function (a) { return a.breakEvenPerDay; })),
+      medianMarginOfSafety: median(analyses.map(function (a) { return a.marginOfSafety; })),
+      shareLosingMoney: share(function (a) { return a.profit < 0; }),
+      shareThinMargin: share(function (a) { return a.cmRatio < 0.3; }),
+      shareNearBreakEven: share(function (a) { return a.profit >= 0 && a.marginOfSafety < 0.15; }),
+      shareUnderpaidOwner: share(function (a) { return a.ownerPay > 0 && a.profit < a.ownerPay; }),
+      shareThinCash: share(function (a) { return a.cashCoverMonths < 1; }),
+      itemsAnalyzed: itemsAnalyzed,
+      losingItems: losingItems,
+      repricingGain: repricingGain,
+      followUps: followUps.length,
+      improvedProfit: profitChanges.filter(function (d) { return d > 0; }).length,
+      totalProfitChange: profitChanges.reduce(function (s, d) { return s + d; }, 0),
+    };
+  }
+
   function money(n) {
     if (!Number.isFinite(n)) return "—";
     var sign = n < 0 ? "-" : "";
@@ -293,6 +465,11 @@
     priceChangeImpact: priceChangeImpact,
     cashForecast: cashForecast,
     healthChecks: healthChecks,
+    itemAnalysis: itemAnalysis,
+    ITEM_GROUPS: ITEM_GROUPS,
+    compareVisits: compareVisits,
+    median: median,
+    aggregate: aggregate,
     fmt: { money: money, money2: money2, pct: pct, whole: whole },
   };
 });

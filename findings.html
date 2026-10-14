@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ledger Findings</title>
+  <meta name="description" content="Combine saved Main Street Ledger checkups into anonymized findings. Runs entirely in the browser.">
+  <meta name="theme-color" content="#1f6f50">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>Findings dashboard</h1>
+      <p class="tagline">Combine your saved checkups into anonymized patterns you can share.</p>
+      <p class="privacy">Files are read in this browser only. Business names never appear in the results.</p>
+      <nav class="topnav no-print"><a href="index.html">← Back to the checkup tool</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card no-print">
+      <h2>1. Add saved checkups</h2>
+      <p class="hint">Select the JSON files you saved with “Download data” after each visit. Use the most recent file for each business.</p>
+      <label class="drop" id="drop">
+        <span id="drop-text">Drop files here, or click to choose</span>
+        <input type="file" id="files" accept="application/json" multiple hidden>
+      </label>
+      <div class="actions">
+        <button type="button" id="demo" class="ghost">Try with demo data</button>
+        <button type="button" id="reset" class="ghost">Reset</button>
+      </div>
+    </section>
+
+    <div id="results" hidden>
+      <section class="card">
+        <h2>2. At a glance</h2>
+        <div class="stats" id="f-stats"></div>
+      </section>
+
+      <section class="card">
+        <h2>3. Common problems</h2>
+        <p class="hint">Share of businesses where each issue showed up.</p>
+        <div class="bars" id="f-issues"></div>
+      </section>
+
+      <section class="card">
+        <h2>4. Who you served</h2>
+        <div class="bars" id="f-types"></div>
+      </section>
+
+      <section class="card">
+        <h2>5. Findings brief</h2>
+        <p class="hint">A plain-text summary you can paste into a report, a newsletter pitch, or your own notes. Check it and add context before sharing.</p>
+        <pre class="brief" id="f-brief"></pre>
+        <div class="actions no-print">
+          <button type="button" id="copy" class="primary">Copy brief</button>
+          <button type="button" id="print" class="ghost">Print</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="wrap site-footer">
+    <p>Main Street Ledger is a free, open-source student project. This is an educational estimate, not accounting or legal advice.</p>
+  </footer>
+
+  <script src="src/calc.js"></script>
+  <script src="src/findings.js"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  </script>
+</body>
+</html>

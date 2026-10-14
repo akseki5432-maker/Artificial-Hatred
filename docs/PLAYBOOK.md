@@ -36,9 +36,10 @@ Ways in, from easiest to hardest:
 | Time | What you do |
 |---|---|
 | 0–5 min | Explain what you'll cover and that the numbers stay private. Ask: *"What keeps you up at night about the business?"* |
-| 5–15 min | Fill in the profile together. Rough numbers are fine. |
-| 15–25 min | Walk through the health check and the price table. Add their big upcoming expenses to the cash forecast. |
-| 25–30 min | Agree on **one** next step and write it in Notes. Print or save the report. Schedule a 5-minute follow-up in 30 days. |
+| 5–12 min | Fill in the profile together. Rough numbers are fine. |
+| 12–18 min | Enter their top 5–10 products in **Product lineup**. Owners are often surprised here, because a best-seller can turn out to be a "Workhorse" or even lose money. |
+| 18–25 min | Walk through the health check and the price table. Add their big upcoming expenses to the cash forecast. |
+| 25–30 min | Agree on **one** next step and write it in Notes. Click **Save today as first-visit baseline**, then **Download data** (with permission). Print or save the report. Schedule a 5-minute follow-up in 30 days. |
 
 Rules:
 - **Don't give tax, legal, or investment advice.** If they ask, point them to the SBDC (it's free) or an accountant.
@@ -47,7 +48,9 @@ Rules:
 
 ## Phase 3: Follow up and measure impact (30 days later)
 
-Send a short text or make a quick call:
+If you can, do the follow-up in person. Open the business's saved file (**Open saved data**), update the visit date and any numbers that changed (prices, costs, sales, cash), and the **Progress since first visit** section appears automatically. Download the updated file afterward. That before-and-after record is your proof of impact, so don't edit the baseline to make results look better.
+
+If you can only send a text or make a quick call:
 1. Did you take the next step we agreed on? (yes / partly / no)
 2. Was anything in the report new to you? (1–5)
 3. Would you recommend this to another owner? (yes / no), and if yes, who?
@@ -63,7 +66,7 @@ Pick one or two:
 - **Run a free workshop** at the library or Chamber: "Know Your Numbers in 45 Minutes."
 - **Partner with the SBDC** so they refer owners who aren't ready for a full advising session.
 - **Add a feature owners keep asking for**, such as a Spanish version, a seasonal-sales mode, or a tip-pooling calculator. The code is in `src/`.
-- **Write a short findings report**, for example: "Of 18 businesses, 11 were pricing below a 60% margin; the median break-even was X sales/day." Share it with your local paper or Chamber newsletter.
+- **Write a short findings report.** Open `findings.html`, load every saved checkup file, and click **Copy brief**. It gives you anonymized patterns like "44% had less than one month of cash; 2 of 30 products cost more to make than they sold for." Add your own context and share it with your local paper, the Chamber newsletter, or your school. This turns a set of checkups into original research.
 
 ---
 
@@ -85,6 +88,8 @@ Common App gives you **50 characters** for the position, **100** for the organiz
   `Built a web tool; ran free break-even/pricing/cash-flow checkups for [N] local businesses; [M] made changes, e.g. repricing to fix losing items.`
 - If you built a team:
   `Built a finance tool & trained [K] students to run free checkups for [N] small businesses; partnered with [Chamber/SBDC]; [M] owners adopted changes.`
+- If you published findings:
+  `Built a finance tool; ran checkups for [N] local businesses & published findings on their pricing and cash risks in [paper/newsletter].`
 - If you led a workshop:
   `Created a free business-finance tool; consulted [N] local owners 1-on-1 and taught a [X]-person workshop on pricing, break-even & cash flow.`
 

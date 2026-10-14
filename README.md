@@ -12,8 +12,14 @@ Most corner cafés, salons, and food trucks don't have a CFO. Many owners don't 
 | Health check | Traffic-light checks (margin, break-even cushion, owner pay, cash), each with a plain-language next step |
 | Price change table | If I raise prices 10%, how many customers can I lose and still earn the same? |
 | Price for a target margin | What should I charge for this item? (It also shows the difference between margin and markup.) |
+| Product lineup | Which items actually earn the money? Which ones cost more to make than they sell for? (Star / Workhorse / Puzzle / Dog, with suggested prices) |
 | 13-week cash forecast | Will cash dip below zero when the tax payment or equipment repair hits? |
+| Progress since first visit | Save a baseline at the first visit; at the 30-day follow-up, see what changed (profit, margin, break-even, cash) |
 | One-page report | Print or save as PDF for the owner to keep |
+
+**Findings dashboard** (`findings.html`): Load the saved files from every checkup and get anonymized patterns across all the businesses you served. It shows common problems, products losing money, the total repricing opportunity, and the profit change after follow-ups. It also writes a plain-text findings brief you can paste. Business names never appear in the results.
+
+**Works offline:** After the first visit, the site loads with no internet connection, which is useful in a shop with bad Wi-Fi. On a phone, you can also add it to your home screen.
 
 **Privacy:** Everything runs in the browser. There is no server, account, or tracking. Numbers are saved only on the device you're using, and you can export or import them as a file if you want.
 
@@ -38,9 +44,12 @@ All the math is in `src/calc.js` as pure functions, with no DOM access, so it ca
 ## Project layout
 
 ```
-index.html           the app
-src/calc.js          financial math (break-even, pricing, cash forecast, health checks)
-src/app.js           UI wiring and chart
+index.html           the checkup tool
+findings.html        anonymized findings across many checkups
+sw.js, manifest.webmanifest, icon.svg   offline support and home-screen install
+src/calc.js          financial math (break-even, pricing, lineup, cash forecast, health checks, follow-up comparison, aggregation)
+src/app.js           checkup UI wiring and chart
+src/findings.js      findings dashboard UI
 src/styles.css       styles, including dark mode and print layout
 tests/calc.test.js   unit tests
 docs/PLAYBOOK.md     how to run this as a real consulting program, plus Common App wording

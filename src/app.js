@@ -10,6 +10,8 @@
   var SAMPLE = {
     profile: {
       businessName: "Corner Café (sample)",
+      businessType: "Food & drink",
+      visitDate: "",
       avgPrice: 9.5,
       varCost: 3.6,
       salesPerMonth: 2100,
@@ -23,6 +25,15 @@
       { week: 9, amount: -3000, label: "Quarterly tax payment" },
       { week: 11, amount: 1800, label: "Catering deposit" },
     ],
+    items: [
+      { name: "Latte", price: 5.25, cost: 1.3, units: 820 },
+      { name: "Drip coffee", price: 2.75, cost: 0.95, units: 640 },
+      { name: "Breakfast sandwich", price: 8.5, cost: 3.9, units: 310 },
+      { name: "Blueberry muffin", price: 3.25, cost: 3.4, units: 260 },
+      { name: "Avocado toast", price: 11, cost: 3.6, units: 70 },
+      { name: "Chai latte", price: 5, cost: 2.6, units: 45 },
+    ],
+    targetMargin: 60,
     notes: "",
   };
 
@@ -30,6 +41,9 @@
   var eventsEl = document.getElementById("events");
   var growthEl = document.getElementById("growth");
   var notesEl = document.getElementById("consultant-notes");
+  var itemsBody = document.querySelector("#items-table tbody");
+  var targetEl = document.getElementById("target-margin");
+  var baseline = null;
 
   // ---------- state ----------
 
@@ -52,11 +66,31 @@
     });
   }
 
+  function readItems() {
+    return Array.prototype.map.call(itemsBody.querySelectorAll("tr"), function (row) {
+      var get = function (n) { return row.querySelector('[name="' + n + '"]').value; };
+      return { name: get("name"), price: numOrBlank(get("price")), cost: numOrBlank(get("cost")), units: numOrBlank(get("units")) };
+    });
+  }
+
+  function numOrBlank(v) {
+    return v === "" ? "" : Number(v);
+  }
+
+  function targetMargin() {
+    var t = Number(targetEl.value);
+    return Number.isFinite(t) && t >= 0 && t < 100 ? t / 100 : 0.6;
+  }
+
   function readState() {
     return {
+      version: 2,
       profile: readProfile(),
       growth: Number(growthEl.value) || 0,
       events: readEvents(),
+      items: readItems(),
+      targetMargin: Number(targetEl.value) || 60,
+      baseline: baseline,
       notes: notesEl.value,
     };
   }
@@ -70,6 +104,10 @@
     growthEl.value = s.growth || 0;
     eventsEl.innerHTML = "";
     (s.events || []).forEach(addEventRow);
+    itemsBody.innerHTML = "";
+    (s.items || []).forEach(addItemRow);
+    targetEl.value = s.targetMargin || 60;
+    baseline = s.baseline || null;
     notesEl.value = s.notes || "";
     render();
   }
@@ -106,6 +144,111 @@
       onChange();
     });
     eventsEl.appendChild(row);
+  }
+
+  // ---------- product lineup ----------
+
+  function addItemRow(it) {
+    it = it || { name: "", price: "", cost: "", units: "" };
+    var row = document.createElement("tr");
+    row.innerHTML =
+      '<td><input name="name" type="text" placeholder="Item name" aria-label="Item name"></td>' +
+      '<td><input name="price" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Price"></td>' +
+      '<td><input name="cost" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Cost to make"></td>' +
+      '<td><input name="units" type="number" min="0" step="1" inputmode="numeric" aria-label="Sold per month"></td>' +
+      '<td class="no-print"><button type="button" aria-label="Remove item">✕</button></td>';
+    ["name", "price", "cost", "units"].forEach(function (k) {
+      row.querySelector('[name="' + k + '"]').value = it[k] !== undefined ? it[k] : "";
+    });
+    row.querySelector("button").addEventListener("click", function () {
+      row.remove();
+      onChange();
+    });
+    itemsBody.appendChild(row);
+    return row;
+  }
+
+  function renderItems() {
+    var ia = L.itemAnalysis(readItems(), targetMargin());
+    var summary = document.getElementById("items-summary");
+    var body = document.querySelector("#items-result tbody");
+    var legend = document.getElementById("items-legend");
+    document.getElementById("items-result").hidden = !ia.rows.length;
+
+    if (!ia.rows.length) {
+      summary.innerHTML = "";
+      body.innerHTML = "";
+      legend.innerHTML = "";
+      return ia;
+    }
+
+    var top = ia.rows[0];
+    var lines = [
+      "<strong>" + esc(top.name) + "</strong> brings in " + f.pct(top.contributionShare) + " of the money left after product costs.",
+    ];
+    if (ia.losers) {
+      lines.push('<span class="neg">' + ia.losers + (ia.losers === 1 ? " item costs" : " items cost") + " more to make than it sells for.</span>");
+    }
+    if (ia.repricingGain > 0) {
+      lines.push("Bringing every item up to a " + f.pct(ia.target) + " margin would add about <strong>" + f.money(ia.repricingGain) +
+        "/month</strong> if sales held steady. Use the price-change table above to sanity-check that.");
+    } else {
+      lines.push("Every item already meets the " + f.pct(ia.target) + " target margin.");
+    }
+    summary.innerHTML = '<p class="summary">' + lines.join(" ") + "</p>";
+
+    body.innerHTML = ia.rows.map(function (r) {
+      var g = L.ITEM_GROUPS[r.group];
+      return "<tr><td>" + esc(r.name) + '</td><td class="' + (r.margin <= 0 ? "neg" : "") + '">' + f.money2(r.margin) + " (" + f.pct(r.marginPct) + ")" +
+        '</td><td><span class="share"><span style="width:' + Math.max(0, r.contributionShare * 100).toFixed(1) + '%"></span></span> ' + f.pct(Math.max(0, r.contributionShare)) +
+        '</td><td><span class="tag ' + r.group + '">' + g.label + "</span></td><td>" + (r.targetPrice ? f.money2(r.targetPrice) : "—") + "</td></tr>";
+    }).join("");
+
+    var present = {};
+    ia.rows.forEach(function (r) { present[r.group] = true; });
+    legend.innerHTML = Object.keys(L.ITEM_GROUPS).filter(function (k) { return present[k]; }).map(function (k) {
+      return '<li><span class="tag ' + k + '">' + L.ITEM_GROUPS[k].label + "</span> " + L.ITEM_GROUPS[k].advice + "</li>";
+    }).join("");
+    return ia;
+  }
+
+  // ---------- follow-up visits ----------
+
+  function renderBaseline() {
+    var status = document.getElementById("baseline-status");
+    var clearBtn = document.getElementById("clear-baseline");
+    var setBtn = document.getElementById("set-baseline");
+    var section = document.getElementById("progress");
+    var p = readProfile();
+
+    clearBtn.hidden = !baseline;
+    setBtn.textContent = baseline ? "Replace baseline with today" : "Save today as first-visit baseline";
+    document.getElementById("notes-title").textContent = (baseline ? "8" : "7") + ". Notes and next steps";
+
+    if (!baseline) {
+      status.textContent = "At the end of the first visit, save a baseline. At the 30-day follow-up, update the numbers to see what changed.";
+      section.hidden = true;
+      return;
+    }
+
+    status.textContent = "Baseline saved from " + (baseline.date || "an earlier visit") + ". Update the numbers above at the follow-up to see progress.";
+    if (!hasProfile(p) || !hasProfile(baseline.profile)) { section.hidden = true; return; }
+    section.hidden = false;
+
+    var rows = L.compareVisits(baseline.profile, p);
+    document.getElementById("progress-hint").textContent = "Comparing the first visit (" + (baseline.date || "earlier") + ") with today's numbers.";
+    document.querySelector("#progress-table tbody").innerHTML = rows.map(function (r) {
+      var fmt = f[r.fmt];
+      var change = r.delta === null || r.direction === "same" ? "—" :
+        (r.delta > 0 ? "+" : "") + (r.fmt === "pct" ? (r.delta * 100).toFixed(1) + " pts" : fmt(r.delta));
+      return "<tr><td>" + r.label + "</td><td>" + fmt(r.before) + "</td><td>" + fmt(r.after) + '</td><td class="delta ' + r.direction + '">' + change + "</td></tr>";
+    }).join("");
+
+    var profit = rows.find(function (r) { return r.key === "profit"; });
+    var summary = document.getElementById("progress-summary");
+    if (profit.delta > 0) summary.textContent = "Monthly profit is up " + f.money(profit.delta) + " since the first visit (" + f.money(profit.delta * 12) + " a year at this rate).";
+    else if (profit.delta < 0) summary.textContent = "Monthly profit is down " + f.money(-profit.delta) + " since the first visit. Revisit the health check together.";
+    else summary.textContent = "No change in monthly profit yet.";
   }
 
   // ---------- rendering ----------
@@ -239,13 +382,17 @@
       document.querySelector("#cash-table tbody").innerHTML = "";
       document.getElementById("cash-summary").textContent = "";
       document.getElementById("cash-chart").innerHTML = "";
+      renderItems();
+      renderBaseline();
       return;
     }
     var a = L.analyze(p);
     renderSnapshot(a);
     renderChecks(a);
     renderPriceTable(p);
+    renderItems();
     renderCash(p);
+    renderBaseline();
     document.title = (p.businessName ? p.businessName + " · " : "") + "Main Street Ledger";
   }
 
@@ -259,6 +406,33 @@
   form.addEventListener("input", onChange);
   growthEl.addEventListener("input", onChange);
   eventsEl.addEventListener("input", onChange);
+  itemsBody.addEventListener("input", onChange);
+  targetEl.addEventListener("input", onChange);
+  document.getElementById("add-item").addEventListener("click", function () {
+    addItemRow().querySelector("input").focus();
+    onChange();
+  });
+  document.getElementById("items-to-profile").addEventListener("click", function () {
+    var ia = L.itemAnalysis(readItems(), targetMargin());
+    if (!ia.totalUnits) { alert("Add at least one item with a price and monthly sales first."); return; }
+    if (!confirm("Replace average price, cost per sale, and sales per month with the lineup totals?\n\nThis treats each item sold as one sale.")) return;
+    form.elements.avgPrice.value = ia.avgPrice.toFixed(2);
+    form.elements.varCost.value = ia.avgCost.toFixed(2);
+    form.elements.salesPerMonth.value = Math.round(ia.totalUnits);
+    onChange();
+  });
+  document.getElementById("set-baseline").addEventListener("click", function () {
+    var p = readProfile();
+    if (!hasProfile(p)) { alert("Fill in the business profile first."); return; }
+    if (baseline && !confirm("Replace the existing baseline with today's numbers?")) return;
+    baseline = { date: p.visitDate || new Date().toISOString().slice(0, 10), profile: p, items: readItems() };
+    onChange();
+  });
+  document.getElementById("clear-baseline").addEventListener("click", function () {
+    if (!confirm("Remove the first-visit baseline?")) return;
+    baseline = null;
+    onChange();
+  });
   notesEl.addEventListener("input", save);
   document.getElementById("pm-cost").addEventListener("input", renderPriceForMargin);
   document.getElementById("pm-margin").addEventListener("input", renderPriceForMargin);
@@ -274,7 +448,10 @@
     var blob = new Blob([JSON.stringify(s, null, 2)], { type: "application/json" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = (s.profile.businessName || "business").replace(/[^\w-]+/g, "-").toLowerCase() + "-ledger.json";
+    var slug = (s.profile.businessName || "business").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "business";
+    a.download = slug + "-" +
+      (s.profile.visitDate || new Date().toISOString().slice(0, 10)) + ".json";
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   });
