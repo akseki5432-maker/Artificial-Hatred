@@ -1,8 +1,11 @@
 /* Offline support: cache the app shell, serve cache first, refresh in the background. */
-var CACHE = "msl-v2";
+var CACHE = "msl-v3";
 var FILES = [
   "./",
   "index.html",
+  "tool.html",
+  "src/site.css",
+  "src/site.js",
   "findings.html",
   "src/calc.js",
   "src/app.js",

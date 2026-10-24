@@ -25,13 +25,11 @@ Most corner cafés, salons, and food trucks don't have a CFO. Many owners don't 
 
 ## Run it
 
-Open `index.html` in any browser. That's it, with no build step.
+Open `index.html` (homepage) or `tool.html` (checkup tool) in any browser. There's no build step.
 
-### Put it online (free, with GitHub Pages)
+### Put it online (free)
 
-1. Push this repo to GitHub.
-2. In the repo, go to **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. The included workflow (`.github/workflows/pages.yml`) runs the tests and deploys on every push to `main`. Your link will look like `https://<username>.github.io/<repo>/`.
+See [`docs/WEBSITE.md`](docs/WEBSITE.md) for step-by-step instructions. Options include Cloudflare Pages (`main-street-ledger.pages.dev`), GitHub Pages, and connecting your own domain. It also covers the settings in `src/site.js`: the request form link, contact email, and playbook link.
 
 ## Run the tests
 
@@ -44,14 +42,18 @@ All the math is in `src/calc.js` as pure functions, with no DOM access, so it ca
 ## Project layout
 
 ```
-index.html           the checkup tool
+index.html           public homepage for business owners
+tool.html            the checkup tool
+404.html             not-found page
 findings.html        anonymized findings across many checkups
 sw.js, manifest.webmanifest, icon.svg   offline support and home-screen install
 src/calc.js          financial math (break-even, pricing, lineup, cash forecast, health checks, follow-up comparison, aggregation)
 src/app.js           checkup UI wiring and chart
 src/findings.js      findings dashboard UI
+src/site.js, site.css   homepage settings and styles
 src/styles.css       styles, including dark mode and print layout
 tests/calc.test.js   unit tests
+docs/WEBSITE.md      how to put the site online with a free address
 docs/PLAYBOOK.md     how to run this as a real consulting program, plus Common App wording
 docs/impact-log.csv  template for tracking businesses served and outcomes
 ```

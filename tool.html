@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Main Street Ledger</title>
+  <meta name="description" content="A free financial checkup for small local businesses: break-even, pricing, price-change impact, and a 13-week cash forecast. Runs in your browser; no data leaves the device.">
+  <meta name="theme-color" content="#1f6f50">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>Main Street Ledger</h1>
+      <p class="tagline">A free 30-minute financial checkup for small local businesses.</p>
+      <p class="privacy">Everything runs in this browser. Numbers are never uploaded anywhere. Works offline once loaded.</p>
+      <nav class="topnav no-print"><a href="./">← Home</a> <a href="findings.html">Findings dashboard</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" id="profile">
+      <div class="card-head">
+        <h2>1. Business profile</h2>
+        <div class="actions no-print">
+          <button type="button" id="load-sample" class="ghost">Load sample café</button>
+          <button type="button" id="clear" class="ghost">Clear</button>
+        </div>
+      </div>
+      <p class="hint">Use monthly averages. Rough numbers are fine; the owner usually knows these within 10%.</p>
+      <form id="profile-form" class="grid" autocomplete="off">
+        <label>Business name
+          <input name="businessName" type="text" placeholder="e.g. Rosa's Tamales">
+        </label>
+        <label>Type of business
+          <select name="businessType">
+            <option value="">Choose…</option>
+            <option>Food &amp; drink</option>
+            <option>Retail</option>
+            <option>Salon / beauty</option>
+            <option>Services &amp; repair</option>
+            <option>Food truck / market stall</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>Visit date
+          <input name="visitDate" type="date">
+        </label>
+        <label>Average price per sale ($)
+          <input name="avgPrice" type="number" min="0" step="0.01" inputmode="decimal">
+          <small>Average ticket: total sales ÷ number of sales</small>
+        </label>
+        <label>Cost per sale ($)
+          <input name="varCost" type="number" min="0" step="0.01" inputmode="decimal">
+          <small>Ingredients, packaging, card fees: costs that grow with each sale</small>
+        </label>
+        <label>Sales per month
+          <input name="salesPerMonth" type="number" min="0" step="1" inputmode="numeric">
+          <small>Number of transactions or customers</small>
+        </label>
+        <label>Fixed costs per month ($)
+          <input name="fixedMonthly" type="number" min="0" step="1" inputmode="decimal">
+          <small>Rent, utilities, insurance, salaried staff, loan payments</small>
+        </label>
+        <label>Owner's target pay per month ($)
+          <input name="ownerPay" type="number" min="0" step="1" inputmode="decimal">
+          <small>What the owner wants to take home</small>
+        </label>
+        <label>Cash on hand ($)
+          <input name="cashOnHand" type="number" min="0" step="1" inputmode="decimal">
+          <small>Business bank balance today</small>
+        </label>
+      </form>
+    </section>
+
+    <section class="card" id="snapshot">
+      <h2>2. Monthly snapshot</h2>
+      <div class="stats" id="stats"></div>
+      <div id="breakeven-bar" class="bar-wrap" aria-hidden="true"></div>
+    </section>
+
+    <section class="card" id="health">
+      <h2>3. Health check</h2>
+      <ul class="checks" id="checks"></ul>
+    </section>
+
+    <section class="card" id="pricing">
+      <h2>4. What if we change prices?</h2>
+      <p class="hint">Raising prices means some customers may leave. This shows how many sales the business could lose (or must gain) and still earn the same as today.</p>
+      <div class="table-scroll">
+        <table id="price-table">
+          <thead><tr><th>Price change</th><th>New avg price</th><th>Sales needed / month</th><th>To earn the same as today</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sub">
+        <h3>Price for a target margin</h3>
+        <div class="grid compact">
+          <label>Item cost ($)<input id="pm-cost" type="number" min="0" step="0.01" value="3.20"></label>
+          <label>Target margin (%)<input id="pm-margin" type="number" min="0" max="99" step="1" value="65"></label>
+          <div class="result" id="pm-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="lineup">
+      <h2>5. Product lineup</h2>
+      <p class="hint">List the main things the business sells (top 5–15 is plenty). This shows which items earn the money and which ones quietly lose it.</p>
+      <div class="table-scroll">
+        <table id="items-table" class="edit-table">
+          <thead><tr><th>Item</th><th>Price ($)</th><th>Cost to make ($)</th><th>Sold / month</th><th class="no-print"></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions no-print">
+        <button type="button" id="add-item" class="ghost">+ Add item</button>
+        <button type="button" id="items-to-profile" class="ghost">Use lineup totals in profile</button>
+        <label class="inline">Target margin
+          <input id="target-margin" type="number" min="0" max="95" step="1" value="60"> %
+        </label>
+      </div>
+      <div id="items-summary"></div>
+      <div class="table-scroll">
+        <table id="items-result">
+          <thead><tr><th>Item</th><th>Margin</th><th>Share of profit</th><th>Group</th><th>Suggested price</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <ul class="legend" id="items-legend"></ul>
+    </section>
+
+    <section class="card" id="cash">
+      <h2>6. 13-week cash forecast</h2>
+      <p class="hint">Add big one-time expenses or inflows (equipment, tax payment, catering deposit). Use a negative amount for spending.</p>
+      <div class="grid compact no-print">
+        <label>Weekly sales growth (%)
+          <input id="growth" type="number" step="0.5" value="0">
+        </label>
+      </div>
+      <div id="events"></div>
+      <button type="button" id="add-event" class="ghost no-print">+ Add one-time item</button>
+      <div class="chart-wrap"><svg id="cash-chart" role="img" aria-label="Cash balance by week"></svg></div>
+      <p id="cash-summary" class="summary"></p>
+      <details class="table-details">
+        <summary>Week-by-week table</summary>
+        <div class="table-scroll">
+          <table id="cash-table">
+            <thead><tr><th>Week</th><th>Money in</th><th>Money out</th><th>One-time</th><th>Balance</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" id="progress" hidden>
+      <h2>7. Progress since first visit</h2>
+      <p class="hint" id="progress-hint"></p>
+      <div class="table-scroll">
+        <table id="progress-table">
+          <thead><tr><th>Measure</th><th>First visit</th><th>Today</th><th>Change</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="progress-summary" class="summary"></p>
+    </section>
+
+    <section class="card" id="notes">
+      <h2 id="notes-title">7. Notes and next steps</h2>
+      <textarea id="consultant-notes" rows="4" placeholder="Agreed next steps, who does what, follow-up date…"></textarea>
+      <div class="actions no-print">
+        <button type="button" id="print" class="primary">Print / save one-page report</button>
+        <button type="button" id="export" class="ghost">Download data (JSON)</button>
+        <label class="ghost file-btn">Open saved data<input type="file" id="import" accept="application/json" hidden></label>
+      </div>
+      <div class="followup no-print">
+        <h3>Follow-up visits</h3>
+        <p class="hint" id="baseline-status"></p>
+        <div class="actions">
+          <button type="button" id="set-baseline" class="ghost">Save today as first-visit baseline</button>
+          <button type="button" id="clear-baseline" class="ghost" hidden>Remove baseline</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap site-footer">
+    <p>Main Street Ledger is a free, student-run project. This is an educational estimate, not accounting or legal advice.</p>
+  </footer>
+
+  <script src="src/calc.js"></script>
+  <script src="src/app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  </script>
+</body>
+</html>
